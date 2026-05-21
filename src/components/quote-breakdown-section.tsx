@@ -184,6 +184,7 @@ export function QuoteBreakdownSection({
                 fee={fee}
                 index={index}
                 onRemove={() => removeBreakdownLine(fee.rowId)}
+                onFieldChange={onPreviewRefresh}
                 onVisibilityChange={(visibility) => {
                   updateBreakdownFee(fee.rowId, {
                     isInternalOnly: visibility === "internal",
@@ -262,11 +263,13 @@ function BreakdownRow({
   fee,
   index,
   onRemove,
+  onFieldChange,
   onVisibilityChange,
 }: {
   fee: ManagedBreakdownFee;
   index: number;
   onRemove: () => void;
+  onFieldChange?: () => void;
   onVisibilityChange: (visibility: "customer" | "internal") => void;
 }) {
   const visibility = feeVisibility(fee);
@@ -283,6 +286,7 @@ function BreakdownRow({
           name={`feeLabel_${fee.rowId}`}
           defaultValue={fee.label}
           placeholder="e.g. Expedited Delivery Fee"
+          onInput={onFieldChange}
         />
       </div>
       <div className="space-y-2">
@@ -295,7 +299,7 @@ function BreakdownRow({
           min="0"
           defaultValue={fee.amount.toString()}
           className="text-right font-medium"
-          onInput={(event) => event.currentTarget.dispatchEvent(new Event("input", { bubbles: true }))}
+          onInput={onFieldChange}
         />
       </div>
       <div className="space-y-2">

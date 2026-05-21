@@ -69,17 +69,23 @@ async function main() {
   await page.goto(`${STAGING}/quotes/${sample.id}/edit`, { waitUntil: "networkidle" });
   await page.getByRole("radio", { name: /Itemized customer breakdown/i }).click();
   await page.waitForTimeout(500);
-  await page.locator('text=Optional customer price breakdown').scrollIntoViewIfNeeded();
+  await page.locator("text=Optional customer price breakdown").scrollIntoViewIfNeeded();
+
+  while ((await page.locator('input[name^="feeAmount_"]').count()) > 1) {
+    await page.locator('input[name^="feeAmount_"]').last().locator("xpath=ancestor::div[contains(@class,\"rounded-lg\")][1]//button").last().click();
+    await page.waitForTimeout(250);
+  }
 
   if ((await page.locator('input[name^="feeAmount_"]').count()) === 0) {
     await page.getByRole("button", { name: /Add breakdown line/i }).click();
     await page.waitForTimeout(300);
   }
 
+  await page.locator('select[name^="feeVisibility_"]').first().selectOption("customer");
   await page.locator('input[name^="feeLabel_"]').first().fill("Expedited Delivery Fee");
   await page.locator('input[name^="feeAmount_"]').first().fill("150");
   await page.locator("#customerTransportationPrice").fill("1300");
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(1500);
 
   const editBody = await page.locator("body").innerText();
   const hasMismatch =
