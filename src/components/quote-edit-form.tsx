@@ -78,7 +78,6 @@ type QuoteEditFormProps = {
   customerTotal: number;
   depositDue: number;
   carrierPay: number;
-  showItemizedBreakdown: boolean;
   customerNotes: string;
   internalNotes: string;
   carrierNotes: string;
@@ -109,7 +108,6 @@ export function QuoteEditForm({
   customerTotal,
   depositDue,
   carrierPay,
-  showItemizedBreakdown,
   customerNotes,
   internalNotes,
   carrierNotes,
@@ -270,7 +268,6 @@ export function QuoteEditForm({
           customerTotal={customerTotal}
           depositDue={depositDue}
           carrierPay={carrierPay}
-          showItemizedBreakdown={showItemizedBreakdown}
           customerNotes={customerNotes}
           internalNotes={internalNotes}
           carrierNotes={carrierNotes}

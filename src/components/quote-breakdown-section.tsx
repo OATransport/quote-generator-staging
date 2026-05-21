@@ -1,15 +1,12 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Wand2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import type { QuoteFormPreview } from "@/lib/quote-form-preview";
 import type { QuoteFeeRowData } from "@/lib/quote-form-preview";
 import { getFeeRowId } from "@/lib/quote-form-preview";
-import {
-  BASE_TRANSPORT_LINE_LABEL,
-  breakdownModeFromToggle,
-  formatBreakdownMismatchMessage,
-} from "@/lib/quote-breakdown";
+import { breakdownModeFromToggle } from "@/lib/quote-breakdown";
+import { CUSTOMER_LINE_PRESETS } from "@/lib/pricing-build-mode";
 import { currency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,125 +106,160 @@ export function QuoteBreakdownSection({
   const initialMode = breakdownModeFromToggle(showItemizedBreakdown);
   const [mode, setMode] = useState<"simple" | "itemized">(initialMode);
 
-  const customerBreakdownTotal = preview.breakdownTotal;
-  const mismatchMessage =
-    mode === "itemized" && customerBreakdownTotal > 0
-      ? formatBreakdownMismatchMessage(preview.customerTotal, customerBreakdownTotal)
-      : null;
-
   function handleModeChange(nextMode: "simple" | "itemized") {
     setMode(nextMode);
+    requestAnimationFrame(() => onPreviewRefresh?.());
   }
 
   useEffect(() => {
-    onPreviewRefresh?.();
-  }, [mode, onPreviewRefresh]);
+    setMode(breakdownModeFromToggle(showItemizedBreakdown));
+  }, [showItemizedBreakdown]);
 
-  function addBaseTransportLine() {
-    const remaining = Math.round((preview.customerTotal - customerBreakdownTotal) * 100) / 100;
-    if (remaining <= 0) return;
-    addBreakdownLine({ label: BASE_TRANSPORT_LINE_LABEL, amount: remaining, visibility: "customer" });
-    onPreviewRefresh?.();
-  }
-
-  function setServicePriceToBreakdownTotal() {
+  useEffect(() => {
+    if (mode !== "itemized") return;
     const input = document.getElementById("customerTransportationPrice") as HTMLInputElement | null;
-    if (!input || customerBreakdownTotal <= 0) return;
-    input.value = customerBreakdownTotal.toFixed(2);
+    if (!input) return;
+    input.value = preview.breakdownTotal.toFixed(2);
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    onPreviewRefresh?.();
-  }
+  }, [mode, preview.breakdownTotal]);
 
   return (
     <div className="space-y-4 rounded-xl border border-dashed bg-muted/20 p-4">
       <div className="space-y-3">
         <div>
-          <p className="font-medium">Optional customer price breakdown</p>
+          <p className="font-medium">Pricing build mode</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Most quotes should stay in Simple total mode. Use itemized breakdown only when you want the customer to see
-            line items that add up to the transportation service price.
+            Choose whether the customer total is entered directly or built from customer line items.
           </p>
         </div>
 
         <input type="hidden" name="breakdownMode" value={mode} readOnly />
 
-        <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Breakdown mode">
+        <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Pricing build mode">
           <BreakdownModeCard
-            title="Simple total"
-            description="Public quote shows one clean vehicle transportation service price."
+            title="Simple Transportation Price"
+            description="Enter the transportation service price manually. Public quote shows one clean line."
             selected={mode === "simple"}
             onSelect={() => handleModeChange("simple")}
           />
           <BreakdownModeCard
-            title="Itemized customer breakdown"
-            description="Public quote shows customer breakdown lines that should add up to the service price."
+            title="Build Price From Itemized Breakdown"
+            description="Customer line items automatically build the transportation service price."
             selected={mode === "itemized"}
             onSelect={() => handleModeChange("itemized")}
           />
         </div>
       </div>
 
-      {mode === "itemized" ? (
+      {mode === "simple" ? (
+        <div className="rounded-lg border bg-background px-4 py-3 text-sm text-muted-foreground">
+          Transportation Service Price is manually entered above. Public quote will show{" "}
+          <span className="font-medium text-foreground">Vehicle Transportation Service — {currency(preview.customerTotal)}</span>.
+          Use internal-only cost rows below if needed — they never change the customer total.
+        </div>
+      ) : (
         <>
-          <div className="rounded-lg border bg-background px-4 py-3 text-sm text-muted-foreground">
-            Customer breakdown rows build the public itemized price. Internal-only rows stay off the customer quote and do
-            not count toward the breakdown total.
+          <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+            Transportation Service Price is calculated from customer line items:{" "}
+            <span className="font-semibold">{currency(preview.breakdownTotal)}</span>. Editing line items updates the
+            customer total immediately.
           </div>
+          <p className="text-sm text-muted-foreground">
+            Use itemized pricing only when you want the customer to see the line items that make up the total.
+          </p>
 
-          <div className="space-y-3">
-            {breakdownFees.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No breakdown lines added yet.</p>
-            ) : null}
-            {breakdownFees.map((fee, index) => (
-              <BreakdownRow
-                key={fee.rowId}
-                fee={fee}
-                index={index}
-                onRemove={() => removeBreakdownLine(fee.rowId)}
-                onFieldChange={onPreviewRefresh}
-                onVisibilityChange={(visibility) => {
-                  updateBreakdownFee(fee.rowId, {
-                    isInternalOnly: visibility === "internal",
-                    showOnPdf: visibility === "customer",
-                  });
+          <div className="flex flex-wrap gap-2">
+            {CUSTOMER_LINE_PRESETS.map((preset) => (
+              <Button
+                key={preset.label}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  addBreakdownLine({ label: preset.label, amount: preset.amount, visibility: "customer" });
                   onPreviewRefresh?.();
                 }}
-              />
+              >
+                Add {preset.label}
+              </Button>
             ))}
           </div>
 
-          <Button type="button" variant="outline" size="sm" onClick={() => addBreakdownLine()}>
-            <Plus className="h-4 w-4" /> Add breakdown line
-          </Button>
+          <div className="space-y-3">
+            {breakdownFees.filter((fee) => !fee.isInternalOnly).length === 0 ? (
+              <p className="text-sm text-muted-foreground">Add customer line items to build the transportation price.</p>
+            ) : null}
+            {breakdownFees
+              .filter((fee) => !fee.isInternalOnly)
+              .map((fee, index) => (
+                <BreakdownRow
+                  key={fee.rowId}
+                  fee={fee}
+                  index={index}
+                  onRemove={() => removeBreakdownLine(fee.rowId)}
+                  onFieldChange={onPreviewRefresh}
+                  onVisibilityChange={(visibility) => {
+                    updateBreakdownFee(fee.rowId, {
+                      isInternalOnly: visibility === "internal",
+                      showOnPdf: visibility === "customer",
+                    });
+                    onPreviewRefresh?.();
+                  }}
+                />
+              ))}
+          </div>
 
-          {mismatchMessage ? (
-            <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-4 text-sm text-amber-950">
-              <p className="font-medium">{mismatchMessage}</p>
-              <div className="flex flex-wrap gap-2">
-                {preview.customerTotal > customerBreakdownTotal ? (
-                  <Button type="button" size="sm" variant="secondary" onClick={addBaseTransportLine}>
-                    <Wand2 className="h-4 w-4" /> Add base transport line for remaining amount (
-                    {currency(preview.customerTotal - customerBreakdownTotal)})
-                  </Button>
-                ) : null}
-                {customerBreakdownTotal > 0 ? (
-                  <Button type="button" size="sm" variant="outline" onClick={setServicePriceToBreakdownTotal}>
-                    Set service price to breakdown total ({currency(customerBreakdownTotal)})
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          ) : mode === "itemized" && customerBreakdownTotal > 0 ? (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-              Breakdown total matches transportation service price ({currency(customerBreakdownTotal)}).
-            </div>
-          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              addBreakdownLine({ visibility: "customer" });
+              onPreviewRefresh?.();
+            }}
+          >
+            <Plus className="h-4 w-4" /> Add customer line item
+          </Button>
         </>
-      ) : (
-        <div className="rounded-lg border bg-background px-4 py-3 text-sm text-muted-foreground">
-          Public quote will show one line: Vehicle Transportation Service — {currency(preview.customerTotal)}.
-        </div>
       )}
+
+      <div className="space-y-3 border-t pt-4">
+        <div>
+          <p className="text-sm font-medium">Internal-only cost rows</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Optional internal costs for dispatch math. Never shown on the public quote and never counted toward the
+            customer total.
+          </p>
+        </div>
+        {breakdownFees.filter((fee) => fee.isInternalOnly).map((fee, index) => (
+          <BreakdownRow
+            key={fee.rowId}
+            fee={fee}
+            index={index}
+            forceInternal
+            onRemove={() => removeBreakdownLine(fee.rowId)}
+            onFieldChange={onPreviewRefresh}
+            onVisibilityChange={(visibility) => {
+              updateBreakdownFee(fee.rowId, {
+                isInternalOnly: visibility === "internal",
+                showOnPdf: visibility === "customer",
+              });
+              onPreviewRefresh?.();
+            }}
+          />
+        ))}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            addBreakdownLine({ visibility: "internal" });
+            onPreviewRefresh?.();
+          }}
+        >
+          <Plus className="h-4 w-4" /> Add internal-only cost
+        </Button>
+      </div>
     </div>
   );
 }
@@ -250,7 +282,9 @@ function BreakdownModeCard({
       aria-checked={selected}
       onClick={onSelect}
       className={`rounded-xl border p-4 text-left transition ${
-        selected ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border bg-background hover:border-primary/30"
+        selected
+          ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+          : "border-border bg-background hover:border-primary/30"
       }`}
     >
       <p className="text-sm font-semibold">{title}</p>
@@ -262,30 +296,33 @@ function BreakdownModeCard({
 function BreakdownRow({
   fee,
   index,
+  forceInternal,
   onRemove,
   onFieldChange,
   onVisibilityChange,
 }: {
   fee: ManagedBreakdownFee;
   index: number;
+  forceInternal?: boolean;
   onRemove: () => void;
   onFieldChange?: () => void;
   onVisibilityChange: (visibility: "customer" | "internal") => void;
 }) {
-  const visibility = feeVisibility(fee);
+  const visibility = forceInternal ? "internal" : feeVisibility(fee);
 
   return (
     <div className="grid gap-3 rounded-lg border bg-background p-4 lg:grid-cols-[1fr_140px_180px_auto] lg:items-end">
       <input type="hidden" name="feeRowId" value={fee.rowId} />
       <input type="hidden" name={`feeType_${fee.rowId}`} value="CUSTOM" />
       <input type="hidden" name={`feeSortOrder_${fee.rowId}`} value={String(fee.sortOrder || index + 1)} />
+      {forceInternal ? <input type="hidden" name={`feeVisibility_${fee.rowId}`} value="internal" /> : null}
       <div className="space-y-2">
         <Label htmlFor={`feeLabel_${fee.rowId}`}>Label</Label>
         <Input
           id={`feeLabel_${fee.rowId}`}
           name={`feeLabel_${fee.rowId}`}
           defaultValue={fee.label}
-          placeholder="e.g. Expedited Delivery Fee"
+          placeholder="e.g. Base Transport"
           onInput={onFieldChange}
         />
       </div>
@@ -302,19 +339,28 @@ function BreakdownRow({
           onInput={onFieldChange}
         />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor={`feeVisibility_${fee.rowId}`}>Visibility</Label>
-        <select
-          id={`feeVisibility_${fee.rowId}`}
-          name={`feeVisibility_${fee.rowId}`}
-          defaultValue={visibility}
-          className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-          onChange={(event) => onVisibilityChange(event.target.value as "customer" | "internal")}
-        >
-          <option value="customer">Customer breakdown</option>
-          <option value="internal">Internal only</option>
-        </select>
-      </div>
+      {!forceInternal ? (
+        <div className="space-y-2">
+          <Label htmlFor={`feeVisibility_${fee.rowId}`}>Visibility</Label>
+          <select
+            id={`feeVisibility_${fee.rowId}`}
+            name={`feeVisibility_${fee.rowId}`}
+            defaultValue={visibility}
+            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            onChange={(event) => onVisibilityChange(event.target.value as "customer" | "internal")}
+          >
+            <option value="customer">Customer line item</option>
+            <option value="internal">Internal-only cost</option>
+          </select>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Label>Visibility</Label>
+          <p className="flex h-10 items-center rounded-md border bg-muted/30 px-3 text-sm text-muted-foreground">
+            Internal-only cost
+          </p>
+        </div>
+      )}
       <Button type="button" variant="ghost" size="icon" onClick={onRemove} className="self-end">
         <Trash2 className="h-4 w-4" />
       </Button>

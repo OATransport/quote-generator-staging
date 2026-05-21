@@ -17,7 +17,6 @@ type QuotePricingWorkspaceProps = {
   customerTotal: number;
   depositDue: number;
   carrierPay: number;
-  showItemizedBreakdown: boolean;
   customerNotes: string;
   internalNotes: string;
   carrierNotes: string;
@@ -30,7 +29,6 @@ export function QuotePricingWorkspace({
   customerTotal,
   depositDue,
   carrierPay,
-  showItemizedBreakdown,
   customerNotes,
   internalNotes,
   carrierNotes,
@@ -54,14 +52,25 @@ export function QuotePricingWorkspace({
             <p className="text-sm text-muted-foreground">Used for the live customer quote link — {model.shortTitle} wording.</p>
 
             <div className="grid gap-4 lg:grid-cols-3">
-              <PricingField
-                id="customerTransportationPrice"
-                name="customerTransportationPrice"
-                label={model.customerServicePriceLabel}
-                helper="The total price quoted to the customer."
-                defaultValue={customerTotal}
-                large
-              />
+              {preview.showItemizedBreakdown ? (
+                <div className="rounded-xl border bg-sky-50 p-5 ring-1 ring-sky-200">
+                  <Label className="text-sm font-semibold">{model.customerServicePriceLabel}</Label>
+                  <input type="hidden" id="customerTransportationPrice" name="customerTransportationPrice" value={preview.breakdownTotal.toFixed(2)} readOnly />
+                  <p className="mt-3 text-3xl font-bold tracking-tight text-sky-950">{currency(preview.breakdownTotal)}</p>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    Auto-calculated from customer line items below.
+                  </p>
+                </div>
+              ) : (
+                <PricingField
+                  id="customerTransportationPrice"
+                  name="customerTransportationPrice"
+                  label={model.customerServicePriceLabel}
+                  helper="Enter the total price quoted to the customer."
+                  defaultValue={customerTotal}
+                  large
+                />
+              )}
               <PricingField
                 id="depositDue"
                 name="depositDue"
@@ -193,7 +202,7 @@ export function QuotePricingWorkspace({
 
           <section className="space-y-4 border-t pt-8">
             <QuoteBreakdownSection
-              showItemizedBreakdown={showItemizedBreakdown}
+              showItemizedBreakdown={preview.showItemizedBreakdown}
               preview={preview}
               onPreviewRefresh={onPreviewRefresh}
             />

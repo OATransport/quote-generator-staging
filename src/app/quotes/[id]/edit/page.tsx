@@ -205,7 +205,6 @@ export default async function EditQuotePage({
               customerTotal={Number(quote.customerTotal)}
               depositDue={Number(quote.depositDue)}
               carrierPay={pricingData.carrierPay}
-              showItemizedBreakdown={pricingData.showItemizedBreakdown}
               customerNotes={quote.customerNotes ?? ""}
               internalNotes={quote.internalNotes ?? ""}
               carrierNotes={pricingData.carrierNotes}

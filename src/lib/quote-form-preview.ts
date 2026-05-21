@@ -5,6 +5,7 @@ import {
   isBreakdownMetaFee,
 } from "@/lib/quote-pricing";
 import { sumCustomerBreakdownFees } from "@/lib/quote-breakdown";
+import { resolveCustomerTransportationPrice } from "@/lib/pricing-build-mode";
 import { formatVehicleSummary } from "@/lib/quote-model";
 import { formatRouteSummaryShort } from "@/lib/route-format";
 
@@ -105,8 +106,9 @@ function buildPreviewCore(input: {
     }));
 
   const breakdownTotal = input.showItemizedBreakdown ? sumCustomerBreakdownFees(breakdownFees) : 0;
+  const customerPrice = input.showItemizedBreakdown ? breakdownTotal : input.customerPrice;
   const pricing = calculateQuotePricing({
-    customerPrice: input.customerPrice,
+    customerPrice,
     depositDue: input.depositDue,
     carrierPay: input.carrierPay,
   });
@@ -120,7 +122,7 @@ function buildPreviewCore(input: {
     marginPercentage: pricing.marginPercent,
     showItemizedBreakdown: input.showItemizedBreakdown,
     breakdownTotal,
-    breakdownMatchesPrice: breakdownMatchesCustomerPrice(breakdownTotal, pricing.customerPrice),
+    breakdownMatchesPrice: input.showItemizedBreakdown ? true : breakdownMatchesCustomerPrice(breakdownTotal, pricing.customerPrice),
     breakdownLineItems: breakdownFees.map((fee) => ({
       rowId: fee.rowId,
       label: fee.label,
@@ -139,10 +141,16 @@ function buildPreviewCore(input: {
 export function buildPreviewFromFormData(formData: FormData): QuoteFormPreview {
   const fees = parseFeesFromFormData(formData);
   const showItemizedBreakdown = readBreakdownModeFromFormData(formData);
+  const manualPrice = parseMoneyField(formData, "customerTransportationPrice");
+  const customerPrice = resolveCustomerTransportationPrice({
+    mode: showItemizedBreakdown ? "itemized" : "simple",
+    manualPrice,
+    breakdownFees: fees,
+  });
 
   return buildPreviewCore({
     fees,
-    customerPrice: parseMoneyField(formData, "customerTransportationPrice"),
+    customerPrice,
     depositDue: parseMoneyField(formData, "depositDue"),
     carrierPay: parseMoneyField(formData, "carrierPay"),
     showItemizedBreakdown,

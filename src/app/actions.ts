@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { generateQuotePdf } from "@/lib/pdf";
 import { parseMoney, parseQuoteMode, parseQuoteStatus, toDecimal } from "@/lib/form-parsing";
 import { buildFeeRowsForSave, parseFeesFromFormData, readBreakdownModeFromFormData } from "@/lib/quote-form-preview";
+import { pricingBuildModeFromForm, resolveCustomerTransportationPrice } from "@/lib/pricing-build-mode";
 import { calculateQuotePricing } from "@/lib/quote-pricing";
 import { isQuotePubliclyActive } from "@/lib/quote-active";
 import { getRequestMeta } from "@/lib/request-meta";
@@ -112,9 +113,15 @@ export async function updateQuoteAction(formData: FormData) {
     }
 
     const depositDue = parseMoney(formData.get("depositDue"));
-    const customerTotal = parseMoney(formData.get("customerTransportationPrice")) ?? 0;
-    const carrierPay = parseMoney(formData.get("carrierPay")) ?? 0;
     const breakdownFees = parseFeesFromFormData(formData);
+    const pricingBuildMode = pricingBuildModeFromForm(formData);
+    const manualPrice = parseMoney(formData.get("customerTransportationPrice")) ?? 0;
+    const customerTotal = resolveCustomerTransportationPrice({
+      mode: pricingBuildMode,
+      manualPrice,
+      breakdownFees,
+    });
+    const carrierPay = parseMoney(formData.get("carrierPay")) ?? 0;
     const showItemizedBreakdown = readBreakdownModeFromFormData(formData);
     const pricing = calculateQuotePricing({ customerPrice: customerTotal, depositDue, carrierPay });
     const feeRows = buildFeeRowsForSave({

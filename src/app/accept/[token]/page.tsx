@@ -21,6 +21,7 @@ import { getQuoteModelConfig } from "@/lib/quote-model";
 import { isQuotePubliclyActive } from "@/lib/quote-active";
 import { getPublicBreakdownItems } from "@/lib/quote-breakdown";
 import { lookupZip } from "@/lib/zip-lookup";
+import { buildPublicQuoteTerms } from "@/lib/public-quote-terms";
 import { readShowItemizedBreakdown } from "@/lib/quote-pricing";
 import { prisma } from "@/lib/prisma";
 import { formatRouteLocation, formatRouteSummaryShort } from "@/lib/route-format";
@@ -83,6 +84,11 @@ export default async function AcceptQuotePage({
   const pickupDateLabel = quote.pickupDate
     ? quote.pickupDate.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
     : quote.deliveryWindow || null;
+  const quoteTerms = buildPublicQuoteTerms({
+    quoteMode: quote.quoteMode === "KEENER_LOGISTICS" || isKeener ? "KEENER_LOGISTICS" : quote.quoteMode,
+    companyName: quote.company.name,
+    hasExpiration: Boolean(quote.validUntil),
+  });
 
   if (!isActive) {
     return (
@@ -130,7 +136,7 @@ export default async function AcceptQuotePage({
             </div>
           </div>
 
-          <div className="space-y-8 px-6 py-8 sm:px-10 sm:py-10">
+          <div className="space-y-10 px-6 py-8 sm:px-10 sm:py-12">
             {errorMessage ? (
               <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{errorMessage}</div>
             ) : null}
@@ -160,6 +166,45 @@ export default async function AcceptQuotePage({
               deliveryCoordinate={deliveryCoordinate}
             />
 
+            <Card className={cn("border-0 shadow-xl ring-2", isKeener ? "bg-slate-50 ring-slate-200" : "bg-sky-50 ring-sky-200")}>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-2xl">Your transportation quote</CardTitle>
+                <CardDescription className="text-base">{quoteModel.pricingCardDescription}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {showItemizedBreakdown && breakdownItems.length > 0 ? (
+                  <>
+                    <div className="space-y-2">
+                      {breakdownItems.map((fee) => (
+                        <PricingRow key={fee.id} label={fee.label} value={currency(fee.amount.toString())} />
+                      ))}
+                    </div>
+                    <PricingRow
+                      label="Transportation Service Total"
+                      value={currency(quote.customerTotal.toString())}
+                      emphasis
+                      accent={brandAccent}
+                    />
+                  </>
+                ) : (
+                  <PricingRow
+                    label="Vehicle Transportation Service"
+                    value={currency(quote.customerTotal.toString())}
+                    emphasis
+                    accent={brandAccent}
+                  />
+                )}
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <PricingRow label="Deposit Due Today" value={currency(quote.depositDue.toString())} />
+                  <PricingRow label="Balance Due on Delivery" value={currency(quote.balanceDue.toString())} />
+                </div>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Deposit is due when accepting. Remaining balance is due on delivery unless otherwise noted.
+                </p>
+              </CardContent>
+            </Card>
+
             <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
               <Card className="border-0 shadow-md ring-1 ring-black/5">
                 <CardHeader>
@@ -177,44 +222,6 @@ export default async function AcceptQuotePage({
                   {vehicle?.type ? <Detail label="Vehicle type" value={vehicle.type} /> : null}
                 </CardContent>
               </Card>
-
-              <Card className={cn("border-0 shadow-lg ring-2", isKeener ? "bg-slate-50 ring-slate-200" : "bg-sky-50 ring-sky-200")}>
-                <CardHeader>
-                  <CardTitle className="text-xl">Your transportation quote</CardTitle>
-                  <CardDescription>{quoteModel.pricingCardDescription}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  {showItemizedBreakdown && breakdownItems.length > 0 ? (
-                    <>
-                      <div className="space-y-2">
-                        {breakdownItems.map((fee) => (
-                          <PricingRow key={fee.id} label={fee.label} value={currency(fee.amount.toString())} />
-                        ))}
-                      </div>
-                      <PricingRow
-                        label="Transportation Service Total"
-                        value={currency(quote.customerTotal.toString())}
-                        emphasis
-                        accent={brandAccent}
-                      />
-                    </>
-                  ) : (
-                    <PricingRow
-                      label="Vehicle Transportation Service"
-                      value={currency(quote.customerTotal.toString())}
-                      emphasis
-                      accent={brandAccent}
-                    />
-                  )}
-
-                  <PricingRow label="Deposit Due Today" value={currency(quote.depositDue.toString())} />
-                  <PricingRow label="Balance Due on Delivery" value={currency(quote.balanceDue.toString())} />
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    Deposit is due when accepting. Remaining balance is due on delivery unless otherwise noted.
-                  </p>
-                  <p className="text-xs leading-5 text-muted-foreground">{quoteModel.balanceDueHelper}</p>
-                </CardContent>
-              </Card>
             </div>
 
             {quote.customerNotes ? (
@@ -224,16 +231,38 @@ export default async function AcceptQuotePage({
               </div>
             ) : null}
 
-            <section className="rounded-2xl border bg-slate-50 p-6">
-              <p className="font-semibold">What happens next</p>
-              <ol className="mt-4 space-y-3 text-sm text-muted-foreground">
-                <li>1. Review your route, vehicle details, and transportation service price.</li>
-                <li>2. Accept the quote when you are ready to move forward.</li>
-                <li>3. {quote.company.name} confirms dispatch details and next steps with you.</li>
+            <section className="rounded-2xl border bg-slate-50 p-6 sm:p-8">
+              <p className="text-lg font-semibold">What happens next</p>
+              <ol className="mt-5 space-y-4 text-sm leading-6 text-muted-foreground">
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">1</span>
+                  <span>You accept the quote.</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">2</span>
+                  <span>Deposit is confirmed.</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">3</span>
+                  <span>Dispatch confirms carrier availability and pickup timing.</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">4</span>
+                  <span>Remaining balance is due on delivery unless otherwise noted.</span>
+                </li>
               </ol>
-              <p className="mt-4 text-xs leading-6 text-muted-foreground">
-                No PDF is required. Quote details can be confirmed by phone or email. Final dispatch depends on carrier availability, route conditions, vehicle condition, and customer-provided details.
-              </p>
+            </section>
+
+            <section className="rounded-2xl border bg-white p-6 sm:p-8">
+              <p className="text-lg font-semibold">Quote terms & important details</p>
+              <ul className="mt-4 space-y-3 text-sm leading-6 text-muted-foreground">
+                {quoteTerms.map((term) => (
+                  <li key={term} className="flex gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                    <span>{term}</span>
+                  </li>
+                ))}
+              </ul>
             </section>
 
             {!isAccepted && !isDeclined ? (

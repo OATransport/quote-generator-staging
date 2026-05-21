@@ -19,16 +19,16 @@ export function getReleaseReadinessItems(): ReadinessItem[] {
       note: "OAT Direct, OAT Brokered, and Keener Logistics models guide labels and internal math.",
     },
     {
-      id: "pricing-model",
-      label: "Pricing model",
+      id: "pricing-mode",
+      label: "Pricing mode",
       status: "ready",
-      note: "Transportation service price, deposit, balance on delivery, and internal carrier/broker math.",
+      note: "Simple Transportation Price vs Build Price From Itemized Breakdown — no hybrid mismatch behavior.",
     },
     {
-      id: "itemized-breakdown",
-      label: "Itemized breakdown",
+      id: "itemized-build-mode",
+      label: "Itemized build mode",
       status: "ready",
-      note: "Simple total vs itemized customer breakdown with mismatch fix actions.",
+      note: "Customer line items auto-calculate service price; internal-only rows never affect customer total.",
     },
     {
       id: "vehicle-editing",
@@ -43,16 +43,16 @@ export function getReleaseReadinessItems(): ReadinessItem[] {
       note: "Pickup and delivery ZIP lookup via /api/zip-lookup.",
     },
     {
-      id: "public-quote",
-      label: "Public quote page",
-      status: "ready",
-      note: "Customer-ready live quote with deposit and balance on delivery wording.",
+      id: "route-map",
+      label: "Public route map",
+      status: "needs_review",
+      note: "Recognizable U.S. silhouette with route line when coordinates exist; premium card fallback otherwise.",
     },
     {
-      id: "route-map",
-      label: "Route map visual",
+      id: "public-quote",
+      label: "Public quote page",
       status: "needs_review",
-      note: "USA route map when ZIP coordinates are available; premium card fallback otherwise.",
+      note: "Hero, pricing card, disclaimers, and accept flow — pending visual approval.",
     },
     {
       id: "ghl-import",
@@ -67,7 +67,7 @@ export function getReleaseReadinessItems(): ReadinessItem[] {
       note:
         syncBackEnabled || autoSyncEnabled
           ? "Sync-back flags are enabled — review carefully before production writes."
-          : "Disabled by design on staging. Manual sync logs SKIPPED.",
+          : "Disabled by design. No real GHL writes until feature lock is complete.",
     },
     {
       id: "manual-quote",

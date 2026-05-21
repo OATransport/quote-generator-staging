@@ -71,9 +71,13 @@ export function QuoteLivePreview({
             </div>
           ) : (
             <div className="rounded-lg border border-dashed bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-              Simple total — public quote shows Vehicle Transportation Service only.
+              Simple Transportation Price — public quote shows one Vehicle Transportation Service line.
             </div>
           )}
+          <SummaryRow
+            label="Pricing build mode"
+            value={preview.showItemizedBreakdown ? "Build from itemized breakdown" : "Simple transportation price"}
+          />
           <div className="border-t pt-3">
             <LiveQuoteLinkField url={liveQuoteUrl} label="Live quote link" helperText="" inputId="liveQuoteLinkPreview" />
           </div>

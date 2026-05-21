@@ -27,7 +27,7 @@ export function CompanyLogo({
         <p
           className={cn(
             "font-semibold uppercase text-secondary",
-            variant === "compact" ? "text-sm" : variant === "public" ? "text-lg tracking-wide" : "text-base",
+            variant === "compact" ? "text-sm" : variant === "public" ? "text-xl tracking-wide text-white" : "text-base",
           )}
         >
           {displayName}
@@ -39,7 +39,8 @@ export function CompanyLogo({
   return (
     <div
       className={cn(
-        variant === "public" && "flex w-full items-center justify-center rounded-2xl bg-white/95 px-6 py-5 shadow-inner ring-1 ring-black/5",
+        variant === "public" &&
+          "inline-flex max-w-full items-center rounded-xl bg-white/95 px-5 py-3 shadow-lg ring-1 ring-white/40 backdrop-blur-sm",
         className,
       )}
     >
@@ -49,7 +50,7 @@ export function CompanyLogo({
         className={cn(
           "object-contain",
           variant === "public"
-            ? "h-[72px] w-auto max-w-[min(100%,360px)] object-center sm:h-[88px]"
+            ? "h-[56px] w-auto max-w-[min(100%,280px)] object-left sm:h-[68px] sm:max-w-[320px]"
             : "object-left",
           variant === "header" ? "h-16 max-w-[260px]" : variant === "compact" ? "h-8 max-w-[160px]" : "",
         )}
