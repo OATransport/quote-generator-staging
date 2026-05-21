@@ -123,13 +123,24 @@ export async function updateQuoteAction(formData: FormData) {
       carrierPay,
       carrierNotes: String(formData.get("carrierNotes") ?? "") || null,
     });
-    const pickupDateRaw = String(formData.get("pickupDate") ?? "").trim();
+    const pickupDateRaw = String(formData.get("pickupDateWindow") ?? "").trim();
     const parsedPickupDate = pickupDateRaw ? new Date(pickupDateRaw) : null;
     const pickupDate = parsedPickupDate && !Number.isNaN(parsedPickupDate.getTime()) ? parsedPickupDate : null;
+    const deliveryWindow = pickupDate ? null : pickupDateRaw || null;
 
-    await prisma.$transaction([
-      prisma.quoteFee.deleteMany({ where: { quoteId } }),
-      prisma.quote.update({
+    const vehicleYear = String(formData.get("vehicleYear") ?? "").trim() || null;
+    const vehicleMake = String(formData.get("vehicleMake") ?? "").trim() || null;
+    const vehicleModel = String(formData.get("vehicleModel") ?? "").trim() || null;
+    const vehicleType = String(formData.get("vehicleType") ?? "").trim() || null;
+    const vehicleCondition = String(formData.get("vehicleCondition") ?? "").trim() || null;
+    const vehicleNotes = String(formData.get("vehicleNotes") ?? "").trim() || null;
+
+    const existingVehicle = await prisma.vehicleSnapshot.findFirst({ where: { quoteId }, select: { id: true } });
+    const hasVehicleData = Boolean(vehicleYear || vehicleMake || vehicleModel || vehicleType || vehicleCondition || vehicleNotes);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.quoteFee.deleteMany({ where: { quoteId } });
+      await tx.quote.update({
         where: { id: quoteId },
         data: {
           quoteMode: parseQuoteMode(formData.get("quoteMode"), existing.quoteMode),
@@ -144,6 +155,7 @@ export async function updateQuoteAction(formData: FormData) {
           deliveryZip: String(formData.get("deliveryZip") ?? "") || null,
           trailerType: String(formData.get("trailerType") ?? "") || null,
           pickupDate,
+          deliveryWindow,
           customerTotal: toDecimal(pricing.customerPrice) ?? 0,
           depositDue: toDecimal(pricing.depositDue) ?? 0,
           balanceDue: toDecimal(pricing.balanceDue) ?? 0,
@@ -154,8 +166,34 @@ export async function updateQuoteAction(formData: FormData) {
           internalNotes: String(formData.get("internalNotes") ?? "") || null,
           fees: { create: feeRows },
         },
-      }),
-    ]);
+      });
+
+      if (existingVehicle) {
+        await tx.vehicleSnapshot.update({
+          where: { id: existingVehicle.id },
+          data: {
+            year: vehicleYear,
+            make: vehicleMake,
+            model: vehicleModel,
+            type: vehicleType,
+            condition: vehicleCondition,
+            notes: vehicleNotes,
+          },
+        });
+      } else if (hasVehicleData) {
+        await tx.vehicleSnapshot.create({
+          data: {
+            quoteId,
+            year: vehicleYear,
+            make: vehicleMake,
+            model: vehicleModel,
+            type: vehicleType,
+            condition: vehicleCondition,
+            notes: vehicleNotes,
+          },
+        });
+      }
+    });
 
     revalidatePath(`/quotes/${quoteId}/edit`);
     revalidatePath("/quotes");

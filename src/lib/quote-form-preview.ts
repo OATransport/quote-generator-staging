@@ -5,6 +5,7 @@ import {
   isBreakdownMetaFee,
   sumCustomerBreakdownTotal,
 } from "@/lib/quote-pricing";
+import { formatVehicleSummary } from "@/lib/quote-model";
 import { formatRouteSummaryShort } from "@/lib/route-format";
 
 export type QuoteFeeRowData = {
@@ -65,6 +66,8 @@ export type QuoteFormPreview = {
   internalNotes: string;
   carrierNotes: string;
   routeSummary: string;
+  vehicleSummary: string;
+  quoteMode: string;
 };
 
 function parseMoneyField(formData: FormData, key: string, fallback = 0) {
@@ -84,6 +87,8 @@ function buildPreviewCore(input: {
   internalNotes: string;
   carrierNotes: string;
   routeSummary: string;
+  vehicleSummary: string;
+  quoteMode: string;
 }): QuoteFormPreview {
   const breakdownFees = input.fees
     .filter((fee) => !isBreakdownMetaFee(fee) && fee.feeType === "CUSTOM")
@@ -122,6 +127,8 @@ function buildPreviewCore(input: {
     internalNotes: input.internalNotes,
     carrierNotes: input.carrierNotes,
     routeSummary: input.routeSummary,
+    vehicleSummary: input.vehicleSummary,
+    quoteMode: input.quoteMode,
   };
 }
 
@@ -144,6 +151,13 @@ export function buildPreviewFromFormData(formData: FormData): QuoteFormPreview {
       String(formData.get("deliveryCity") ?? ""),
       String(formData.get("deliveryState") ?? ""),
     ),
+    vehicleSummary: formatVehicleSummary({
+      year: String(formData.get("vehicleYear") ?? ""),
+      make: String(formData.get("vehicleMake") ?? ""),
+      model: String(formData.get("vehicleModel") ?? ""),
+      type: String(formData.get("vehicleType") ?? ""),
+    }),
+    quoteMode: String(formData.get("quoteMode") ?? "OAT_DIRECT"),
   });
 }
 
@@ -161,6 +175,8 @@ export function buildInitialPreview(input: {
   internalNotes: string;
   carrierNotes: string;
   routeSummary: string;
+  vehicleSummary: string;
+  quoteMode: string;
 }): QuoteFormPreview {
   return buildPreviewCore({
     fees: input.fees,
@@ -172,6 +188,8 @@ export function buildInitialPreview(input: {
     internalNotes: input.internalNotes,
     carrierNotes: input.carrierNotes,
     routeSummary: input.routeSummary,
+    vehicleSummary: input.vehicleSummary,
+    quoteMode: input.quoteMode,
   });
 }
 

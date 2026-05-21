@@ -4,13 +4,12 @@ import { cn, currency } from "@/lib/utils";
 import type { QuoteFormPreview } from "@/lib/quote-form-preview";
 import { LiveQuoteLinkField } from "@/components/live-quote-link-field";
 import { QuoteFieldBadge } from "@/components/quote-field-badge";
-import { quoteModeLabel } from "@/lib/quote";
+import { getQuoteModelConfig, quoteModelTitle } from "@/lib/quote-model";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function QuoteLivePreview({
   preview,
   customerName,
-  vehicleSummary,
   liveQuoteUrl,
   quoteMode,
   ghlOpportunityId,
@@ -20,7 +19,6 @@ export function QuoteLivePreview({
 }: {
   preview: QuoteFormPreview;
   customerName: string;
-  vehicleSummary: string;
   liveQuoteUrl: string;
   quoteMode: string;
   ghlOpportunityId: string | null;
@@ -28,6 +26,10 @@ export function QuoteLivePreview({
   syncFeedbackMessage?: string | null;
   syncFeedbackStatus?: string | null;
 }) {
+  const activeMode = preview.quoteMode || quoteMode;
+  const model = getQuoteModelConfig(activeMode);
+  const showBrokerInternal = model.showBrokerFormula;
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="border-sky-200/80 shadow-sm">
@@ -36,17 +38,19 @@ export function QuoteLivePreview({
             <CardTitle className="text-base">Customer quote preview</CardTitle>
             <QuoteFieldBadge variant="customer-visible" />
           </div>
-          <CardDescription>What the customer sees on the public live quote page.</CardDescription>
+          <CardDescription>
+            {quoteModelTitle(activeMode)} — what the customer sees on the public live quote page.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <SummaryRow label="Customer" value={customerName} />
           <SummaryRow label="Route" value={preview.routeSummary} />
-          <SummaryRow label="Vehicle" value={vehicleSummary} />
+          <SummaryRow label="Vehicle" value={preview.vehicleSummary} />
           <div className="space-y-2 border-t pt-3">
-            <SummaryMetric label="Transportation Service Price" value={currency(preview.customerTotal)} emphasis />
+            <SummaryMetric label={model.customerServicePriceLabel} value={currency(preview.customerTotal)} emphasis />
             <div className="grid grid-cols-2 gap-3">
-              <SummaryMetric label="Deposit Due Today" value={currency(preview.depositDue)} />
-              <SummaryMetric label="Remaining Carrier Balance" value={currency(preview.balanceDue)} />
+              <SummaryMetric label={model.depositLabel} value={currency(preview.depositDue)} />
+              <SummaryMetric label={model.balanceDueLabel} value={currency(preview.balanceDue)} />
             </div>
           </div>
           {preview.showItemizedBreakdown && preview.breakdownLineItems.some((item) => item.isCustomerVisible) ? (
@@ -71,23 +75,32 @@ export function QuoteLivePreview({
       <Card className="border-amber-200/80 bg-amber-50/20 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-base">Internal profit preview</CardTitle>
+            <CardTitle className="text-base">Internal preview</CardTitle>
             <QuoteFieldBadge variant="internal-only" />
           </div>
-          <CardDescription>Carrier pay and broker margin — never shown publicly.</CardDescription>
+          <CardDescription>
+            {showBrokerInternal ? "Carrier pay and broker margin — never shown publicly." : "Direct service internal math — never shown publicly."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <SummaryMetric label="Carrier pay" value={currency(preview.carrierPay)} />
-            <SummaryMetric label="Broker fee" value={currency(preview.grossMargin)} emphasis />
-          </div>
+          {showBrokerInternal ? (
+            <div className="grid grid-cols-2 gap-3">
+              <SummaryMetric label="Carrier pay" value={currency(preview.carrierPay)} />
+              <SummaryMetric label="Broker fee" value={currency(preview.grossMargin)} emphasis />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <SummaryMetric label={model.carrierPayLabel} value={preview.carrierPay > 0 ? currency(preview.carrierPay) : "—"} />
+              <SummaryMetric label="Estimated margin" value={preview.carrierPay > 0 ? currency(preview.grossMargin) : "—"} emphasis />
+            </div>
+          )}
           <SummaryRow
             label="Margin %"
             value={preview.marginPercentage == null ? "Enter customer price" : `${preview.marginPercentage.toFixed(1)}%`}
           />
           <div className="space-y-1 border-t border-amber-200/60 pt-3">
             <SummaryRow label="GHL opportunity" value={ghlOpportunityId ?? "—"} mono />
-            <SummaryRow label="Quote mode" value={quoteModeLabel(quoteMode)} />
+            <SummaryRow label="Quote model" value={quoteModelTitle(activeMode)} />
             <SummaryRow label="Sync status" value={syncStatusLabel} />
             {syncFeedbackMessage ? (
               <div className="rounded-md border bg-background/80 p-2 text-xs">

@@ -14,6 +14,8 @@ type PublicAcceptCheck = {
   hidesCarrierPay: boolean;
   hidesInternalNotes: boolean;
   hasQuoteTotal: boolean;
+  hidesCarrierBalanceLabel: boolean;
+  hasBalanceDueLabel: boolean;
 };
 
 type MappingGuidancePageCheck = {
@@ -345,7 +347,7 @@ async function main() {
       profitSummary: /Broker fee|Internal profit preview|Margin %|Profit summary/i.test(html),
       badges: /Customer-visible|Internal only/i.test(html),
       stickySave: /Save quote/i.test(html) && /Unsaved changes|Does not update GHL/i.test(html),
-      collapsible: /Quote settings|Pickup location|Delivery location/i.test(html),
+      collapsible: /Quote model|Guided quote builder|Route & shipment|Pickup location|Vehicle details|Quote settings/i.test(html),
       liveLinkStaging: liveLink.startsWith(`${STAGING}/accept/`),
       previewInputId: await page.locator("#liveQuoteLinkPreview").count(),
       sidebarInputId: await page.locator("#liveQuoteLinkSidebar").count(),
@@ -401,10 +403,15 @@ async function main() {
       status: acceptRes.status,
       hidesCarrierPay: !/carrier pay/i.test(acceptHtml),
       hidesInternalNotes: !/internal notes/i.test(acceptHtml),
-      hasQuoteTotal: /Transportation Service Price|Quote total/i.test(acceptHtml),
+      hasQuoteTotal: /Transportation Service Price|Logistics Transportation Service|Quote total/i.test(acceptHtml),
+      hidesCarrierBalanceLabel: !/Remaining Carrier Balance|carrier balance/i.test(acceptHtml),
+      hasBalanceDueLabel: /Balance Due on Delivery/i.test(acceptHtml),
     };
     report.publicAccept = publicAccept;
     if (!publicAccept.hidesCarrierPay) fail("Public accept exposes carrier pay");
+    if (publicAccept.hasBalanceDueLabel && !publicAccept.hidesCarrierBalanceLabel) {
+      fail("Public accept still shows carrier balance wording alongside new balance label");
+    }
   }
 
   let archiveQuote = await prisma.quote.findFirst({

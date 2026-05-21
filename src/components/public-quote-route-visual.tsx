@@ -13,73 +13,156 @@ export function PublicQuoteRouteVisual({
   routeSummary: string;
   isKeener: boolean;
 }) {
-  const accent = isKeener ? "from-slate-800 to-slate-950" : "from-sky-700 to-sky-900";
+  const accentFrom = isKeener ? "#0f172a" : "#0369a1";
+  const accentTo = isKeener ? "#1e293b" : "#0c4a6e";
+  const routeStroke = isKeener ? "#334155" : "#0284c7";
+  const pickupPin = "#059669";
+  const deliveryPin = "#4f46e5";
+
+  const pickupPrimary = pickup.lines[0] ?? "Pickup";
+  const pickupSecondary = pickup.lines.slice(1).join(", ");
+  const deliveryPrimary = delivery.lines[0] ?? "Delivery";
+  const deliverySecondary = delivery.lines.slice(1).join(", ");
 
   return (
-    <div className="overflow-hidden rounded-2xl border bg-white shadow-sm ring-1 ring-black/5">
-      <div className={cn("bg-gradient-to-r px-5 py-4 text-white", accent)}>
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Navigation className="h-4 w-4" />
-          <span>Transport route</span>
-        </div>
-        <p className="mt-1 text-lg font-semibold tracking-tight">{routeSummary}</p>
-        <p className="mt-1 text-xs text-white/75">Door-to-door vehicle transport route summary</p>
-      </div>
-
-      <div className="grid gap-0 md:grid-cols-[1fr_auto_1fr]">
-        <RouteEndpoint title="Pickup" lines={pickup.lines} tone="pickup" />
-        <div className="hidden items-center justify-center px-4 md:flex">
-          <div className="flex flex-col items-center gap-2">
-            <div className="h-16 w-px bg-gradient-to-b from-transparent via-border to-transparent" />
-            <div className="rounded-full border bg-muted p-3 text-muted-foreground">
-              <Truck className="h-5 w-5" />
+    <div className="overflow-hidden rounded-3xl border bg-white shadow-lg ring-1 ring-black/5">
+      <div
+        className="relative px-6 py-5 text-white sm:px-8"
+        style={{ background: `linear-gradient(135deg, ${accentFrom}, ${accentTo})` }}
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_45%)]" />
+        <div className="relative flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-medium text-white/80">
+              <Navigation className="h-4 w-4" />
+              <span>Your transport route</span>
             </div>
-            <ArrowRight className="h-5 w-5 text-muted-foreground" />
-            <div className="h-16 w-px bg-gradient-to-b from-transparent via-border to-transparent" />
+            <p className="mt-1 text-2xl font-bold tracking-tight">{routeSummary}</p>
+          </div>
+          <div className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide">
+            Door-to-door
           </div>
         </div>
-        <RouteEndpoint title="Delivery" lines={delivery.lines} tone="delivery" align="end" />
       </div>
 
-      <div className="border-t bg-muted/20 px-5 py-3 text-center text-xs text-muted-foreground md:hidden">
-        <ArrowRight className="mx-auto mb-1 h-4 w-4" />
-        Vehicle transport route
+      <div className="relative bg-gradient-to-b from-slate-50 to-white px-4 py-8 sm:px-8">
+        <svg viewBox="0 0 800 220" className="mx-auto hidden w-full max-w-3xl md:block" aria-hidden>
+          <defs>
+            <linearGradient id="routeLine" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor={pickupPin} />
+              <stop offset="50%" stopColor={routeStroke} />
+              <stop offset="100%" stopColor={deliveryPin} />
+            </linearGradient>
+          </defs>
+          <path
+            d="M 90 110 C 220 60, 280 160, 400 110 S 580 60, 710 110"
+            fill="none"
+            stroke="url(#routeLine)"
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeDasharray="8 10"
+            className="route-dash-animate"
+          />
+          <circle cx="90" cy="110" r="16" fill={pickupPin} opacity="0.15" />
+          <circle cx="90" cy="110" r="8" fill={pickupPin} />
+          <circle cx="710" cy="110" r="16" fill={deliveryPin} opacity="0.15" />
+          <circle cx="710" cy="110" r="8" fill={deliveryPin} />
+          <g className="route-truck-animate">
+            <rect x="382" y="96" width="36" height="22" rx="6" fill={routeStroke} />
+            <rect x="404" y="100" width="14" height="14" rx="3" fill="white" opacity="0.85" />
+            <circle cx="392" cy="120" r="5" fill="#0f172a" />
+            <circle cx="408" cy="120" r="5" fill="#0f172a" />
+          </g>
+        </svg>
+
+        <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
+          <RouteEndpointCard
+            title="Pickup"
+            primary={pickupPrimary}
+            secondary={pickupSecondary}
+            tone="pickup"
+            pinColor={pickupPin}
+          />
+
+          <div className="hidden items-center justify-center md:flex">
+            <div className="flex flex-col items-center gap-2 px-2">
+              <div className="rounded-full border bg-white p-3 shadow-sm">
+                <Truck className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <ArrowRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </div>
+
+          <RouteEndpointCard
+            title="Delivery"
+            primary={deliveryPrimary}
+            secondary={deliverySecondary}
+            tone="delivery"
+            pinColor={deliveryPin}
+            align="end"
+          />
+        </div>
+
+        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground md:hidden">
+          <MapPin className="h-3.5 w-3.5" />
+          <span>{pickupPrimary}</span>
+          <ArrowRight className="h-3.5 w-3.5" />
+          <span>{deliveryPrimary}</span>
+        </div>
       </div>
+
+      <style>{`
+        @keyframes routeDash {
+          to { stroke-dashoffset: -36; }
+        }
+        @keyframes routeTruck {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(8px); }
+        }
+        .route-dash-animate {
+          animation: routeDash 2.4s linear infinite;
+        }
+        .route-truck-animate {
+          animation: routeTruck 2.4s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 }
 
-function RouteEndpoint({
+function RouteEndpointCard({
   title,
-  lines,
+  primary,
+  secondary,
   tone,
+  pinColor,
   align,
 }: {
   title: string;
-  lines: string[];
+  primary: string;
+  secondary?: string;
   tone: "pickup" | "delivery";
+  pinColor: string;
   align?: "end";
 }) {
   return (
-    <div className={cn("border-b p-5 md:border-b-0 md:border-r last:md:border-r-0", align === "end" && "md:text-right")}>
-      <div className={cn("mb-3 flex items-center gap-2", align === "end" && "md:justify-end")}>
-        <div
-          className={cn(
-            "rounded-lg p-2 text-white",
-            tone === "pickup" ? "bg-emerald-600" : "bg-indigo-600",
-          )}
-        >
+    <div
+      className={cn(
+        "rounded-2xl border bg-white p-5 shadow-sm",
+        align === "end" && "md:text-right",
+      )}
+    >
+      <div className={cn("mb-4 flex items-center gap-3", align === "end" && "md:justify-end")}>
+        <div className="rounded-xl p-2.5 text-white" style={{ backgroundColor: pinColor }}>
           <MapPin className="h-4 w-4" />
         </div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+          <p className="text-[11px] text-muted-foreground">{tone === "pickup" ? "Origin" : "Destination"}</p>
+        </div>
       </div>
-      <div className="space-y-1">
-        {lines.map((line) => (
-          <p key={line} className="text-sm font-medium leading-6 text-foreground">
-            {line}
-          </p>
-        ))}
-      </div>
+      <p className="text-lg font-semibold leading-snug text-foreground">{primary}</p>
+      {secondary ? <p className="mt-1 text-sm text-muted-foreground">{secondary}</p> : null}
     </div>
   );
 }

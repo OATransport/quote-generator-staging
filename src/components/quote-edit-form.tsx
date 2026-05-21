@@ -6,14 +6,18 @@ import { updateQuoteAction } from "@/app/actions";
 import { CollapsibleSection } from "@/components/collapsible-section";
 import { QuoteBreakdownProvider } from "@/components/quote-breakdown-section";
 import { QuoteLivePreview } from "@/components/quote-live-preview";
+import { QuoteModelSelector } from "@/components/quote-model-selector";
 import { QuotePricingWorkspace } from "@/components/quote-pricing-workspace";
+import { ZipAutofillGroup } from "@/components/zip-autofill-group";
 import { buildPreviewFromFormElement, type QuoteFeeRowData, type QuoteFormPreview } from "@/lib/quote-form-preview";
 import { quoteStatusOptions } from "@/lib/form-parsing";
+import { getQuoteModelConfig, resolveDefaultQuoteMode } from "@/lib/quote-model";
 import { currency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 const PreviewContext = createContext<{
   preview: QuoteFormPreview;
@@ -54,14 +58,12 @@ export function QuoteLivePreviewPanel({
 
 export function QuoteSidebarTotalsLive() {
   const { preview } = usePreviewContext();
-  return <QuoteSidebarTotals preview={preview} />;
+  return <QuoteSidebarTotals preview={preview} quoteMode={preview.quoteMode} />;
 }
 
 type QuotePreviewContextProps = {
   customerName: string;
-  vehicleSummary: string;
   liveQuoteUrl: string;
-  routeSummary: string;
   ghlOpportunityId: string | null;
   syncStatusLabel: string;
   syncFeedbackMessage?: string | null;
@@ -71,6 +73,7 @@ type QuotePreviewContextProps = {
 type QuoteEditFormProps = {
   quoteId: string;
   quoteMode: string;
+  companyName: string;
   status: string;
   customerTotal: number;
   depositDue: number;
@@ -88,13 +91,20 @@ type QuoteEditFormProps = {
   deliveryState: string;
   deliveryZip: string;
   transportType: string;
-  pickupDate: string;
+  pickupDateWindow: string;
+  vehicleYear: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  vehicleType: string;
+  vehicleCondition: string;
+  vehicleNotes: string;
   breakdownFees: QuoteFeeRowData[];
 };
 
 export function QuoteEditForm({
   quoteId,
   quoteMode,
+  companyName,
   status,
   customerTotal,
   depositDue,
@@ -112,12 +122,21 @@ export function QuoteEditForm({
   deliveryState,
   deliveryZip,
   transportType,
-  pickupDate,
+  pickupDateWindow,
+  vehicleYear,
+  vehicleMake,
+  vehicleModel,
+  vehicleType,
+  vehicleCondition,
+  vehicleNotes,
   breakdownFees,
 }: QuoteEditFormProps) {
   const { preview, setPreview } = usePreviewContext();
   const formRef = useRef<HTMLFormElement>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(
+    resolveDefaultQuoteMode({ quoteMode: quoteMode as "OAT_DIRECT" | "OAT_IF_BROKERED" | "KEENER_LOGISTICS", companyName }),
+  );
 
   const refreshPreview = useCallback(() => {
     const form = formRef.current;
@@ -142,109 +161,111 @@ export function QuoteEditForm({
     };
   }, [refreshPreview]);
 
+  const handleModelChange = (mode: string) => {
+    setSelectedModel(mode as typeof selectedModel);
+    setIsDirty(true);
+    requestAnimationFrame(refreshPreview);
+  };
+
   return (
     <QuoteBreakdownProvider initialFees={breakdownFees} onChange={refreshPreview}>
       <form ref={formRef} action={updateQuoteAction} className="space-y-6">
         <input type="hidden" name="quoteId" value={quoteId} />
 
+        <Card className="border-primary/20 shadow-md ring-1 ring-primary/10">
+          <CardHeader className="border-b bg-muted/20">
+            <CardTitle>Guided quote builder</CardTitle>
+            <CardDescription>Start with the quote model, then route, vehicle, and pricing.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6 p-6">
+            <QuoteModelSelector value={selectedModel} onChange={handleModelChange} />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
-            <CardTitle>Shipment details</CardTitle>
-            <CardDescription>Route, vehicle, and transport details shown on the customer quote when provided.</CardDescription>
+            <CardTitle>Route & shipment</CardTitle>
+            <CardDescription>Pickup and delivery details shown on the customer quote.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <CollapsibleSection title="Quote settings" description="Mode and workflow status for this quote." defaultOpen>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="quoteMode">Quote mode</Label>
-                  <select
-                    id="quoteMode"
-                    name="quoteMode"
-                    defaultValue={quoteMode}
-                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                  >
-                    <option value="OAT_DIRECT">OAT Direct</option>
-                    <option value="KEENER_LOGISTICS">Keener Logistics</option>
-                    <option value="OAT_IF_BROKERED">OAT if brokered</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <select
-                    id="status"
-                    name="status"
-                    defaultValue={status}
-                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                  >
-                    {quoteStatusOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option.replaceAll("_", " ")}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </CollapsibleSection>
-
+          <CardContent className="space-y-6">
             <CollapsibleSection title="Pickup location" defaultOpen>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="pickupAddress">Pickup address</Label>
-                  <Input id="pickupAddress" name="pickupAddress" defaultValue={pickupAddress} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pickupCity">Pickup city</Label>
-                  <Input id="pickupCity" name="pickupCity" defaultValue={pickupCity} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pickupState">Pickup state</Label>
-                  <Input id="pickupState" name="pickupState" defaultValue={pickupState} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pickupZip">Pickup ZIP</Label>
-                  <Input id="pickupZip" name="pickupZip" defaultValue={pickupZip} />
-                </div>
-              </div>
+              <ZipAutofillGroup
+                prefix="pickup"
+                title="Pickup"
+                address={pickupAddress}
+                city={pickupCity}
+                state={pickupState}
+                zip={pickupZip}
+                onFieldChange={refreshPreview}
+              />
             </CollapsibleSection>
 
             <CollapsibleSection title="Delivery location" defaultOpen>
-              <div className="grid gap-4 md:grid-cols-2">
+              <ZipAutofillGroup
+                prefix="delivery"
+                title="Delivery"
+                address={deliveryAddress}
+                city={deliveryCity}
+                state={deliveryState}
+                zip={deliveryZip}
+                onFieldChange={refreshPreview}
+              />
+            </CollapsibleSection>
+
+            <CollapsibleSection title="Vehicle details" description="Editable vehicle information for this quote." defaultOpen>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="vehicleYear">Vehicle year</Label>
+                  <Input id="vehicleYear" name="vehicleYear" defaultValue={vehicleYear} placeholder="e.g. 2021" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vehicleMake">Vehicle make</Label>
+                  <Input id="vehicleMake" name="vehicleMake" defaultValue={vehicleMake} placeholder="e.g. Toyota" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vehicleModel">Vehicle model</Label>
+                  <Input id="vehicleModel" name="vehicleModel" defaultValue={vehicleModel} placeholder="e.g. Camry" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vehicleType">Vehicle type</Label>
+                  <Input id="vehicleType" name="vehicleType" defaultValue={vehicleType} placeholder="e.g. Sedan, SUV" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vehicleCondition">Running status</Label>
+                  <Input id="vehicleCondition" name="vehicleCondition" defaultValue={vehicleCondition} placeholder="Running / Not running" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="trailerType">Transport type</Label>
+                  <Input id="trailerType" name="trailerType" defaultValue={transportType} placeholder="e.g. Open, Enclosed" />
+                </div>
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="deliveryAddress">Delivery address</Label>
-                  <Input id="deliveryAddress" name="deliveryAddress" defaultValue={deliveryAddress} />
+                  <Label htmlFor="pickupDateWindow">Pickup date / window</Label>
+                  <Input id="pickupDateWindow" name="pickupDateWindow" defaultValue={pickupDateWindow} placeholder="e.g. May 24 or ASAP" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="deliveryCity">Delivery city</Label>
-                  <Input id="deliveryCity" name="deliveryCity" defaultValue={deliveryCity} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="deliveryState">Delivery state</Label>
-                  <Input id="deliveryState" name="deliveryState" defaultValue={deliveryState} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="deliveryZip">Delivery ZIP</Label>
-                  <Input id="deliveryZip" name="deliveryZip" defaultValue={deliveryZip} />
+                <div className="space-y-2 md:col-span-3">
+                  <Label htmlFor="vehicleNotes">Shipment notes</Label>
+                  <Textarea id="vehicleNotes" name="vehicleNotes" defaultValue={vehicleNotes} placeholder="Vehicle or shipment notes visible internally" rows={3} />
                 </div>
               </div>
             </CollapsibleSection>
 
-            <CollapsibleSection title="Vehicle & transport" defaultOpen>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="trailerType">Transport type</Label>
-                  <Input id="trailerType" name="trailerType" defaultValue={transportType} placeholder="e.g. Open, Enclosed" />
-                  <p className="text-xs text-muted-foreground">Imported from Keener when available. OAT can enter manually.</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pickupDate">Pickup date / window</Label>
-                  <Input id="pickupDate" name="pickupDate" defaultValue={pickupDate} placeholder="e.g. May 24 or ASAP" />
-                </div>
+            <CollapsibleSection title="Workflow status" description="Internal quote status.">
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <select id="status" name="status" defaultValue={status} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
+                  {quoteStatusOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option.replaceAll("_", " ")}
+                    </option>
+                  ))}
+                </select>
               </div>
             </CollapsibleSection>
           </CardContent>
         </Card>
 
         <QuotePricingWorkspace
+          quoteMode={selectedModel}
           preview={preview}
           customerTotal={customerTotal}
           depositDue={depositDue}
@@ -272,7 +293,9 @@ export function QuoteEditForm({
   );
 }
 
-export function QuoteSidebarTotals({ preview }: { preview: QuoteFormPreview }) {
+export function QuoteSidebarTotals({ preview, quoteMode }: { preview: QuoteFormPreview; quoteMode: string }) {
+  const config = getQuoteModelConfig(preview.quoteMode || quoteMode);
+
   return (
     <div className="space-y-3">
       <p className="text-2xl font-bold tracking-tight">{currency(preview.customerTotal)}</p>
@@ -282,18 +305,14 @@ export function QuoteSidebarTotals({ preview }: { preview: QuoteFormPreview }) {
           <p className="font-medium">{currency(preview.depositDue)}</p>
         </div>
         <div>
-          <p className="text-muted-foreground">Balance</p>
+          <p className="text-muted-foreground">Balance on delivery</p>
           <p className="font-medium">{currency(preview.balanceDue)}</p>
         </div>
       </div>
       <div className="border-t pt-3 text-sm">
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Carrier pay</span>
-          <span className="font-medium">{currency(preview.carrierPay)}</span>
-        </div>
-        <div className="mt-1 flex justify-between">
-          <span className="text-muted-foreground">Broker fee</span>
-          <span className="font-medium">{currency(preview.grossMargin)}</span>
+          <span className="text-muted-foreground">Model</span>
+          <span className="font-medium text-right text-xs">{config.shortTitle}</span>
         </div>
       </div>
     </div>

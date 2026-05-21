@@ -17,6 +17,7 @@ import { CompanyLogo } from "@/components/company-logo";
 import { PublicQuoteRouteVisual } from "@/components/public-quote-route-visual";
 import { companyHeaderLogoUrl } from "@/lib/company-branding";
 import { isKeenerCompany, resolveCompanyContact } from "@/lib/company-contact";
+import { getQuoteModelConfig } from "@/lib/quote-model";
 import { isQuotePubliclyActive } from "@/lib/quote-active";
 import { isBreakdownMetaFee, readShowItemizedBreakdown } from "@/lib/quote-pricing";
 import { prisma } from "@/lib/prisma";
@@ -68,6 +69,9 @@ export default async function AcceptQuotePage({
   const vehicleInfo = [vehicle?.year, vehicle?.make, vehicle?.model].filter(Boolean).join(" ") || null;
   const isKeener = isKeenerCompany(quote.company.name);
   const contact = resolveCompanyContact(quote.company.name);
+  const quoteModel = getQuoteModelConfig(
+    quote.quoteMode === "KEENER_LOGISTICS" || isKeener ? "KEENER_LOGISTICS" : quote.quoteMode,
+  );
   const showItemizedBreakdown = readShowItemizedBreakdown(quote.fees);
   const breakdownItems = quote.fees.filter(
     (fee) =>
@@ -95,20 +99,18 @@ export default async function AcceptQuotePage({
         <div className="overflow-hidden rounded-[28px] border border-white/60 bg-white shadow-2xl shadow-slate-300/30">
           <div className={cn("relative px-6 py-10 text-white sm:px-10", `bg-gradient-to-br ${brandGradient}`)}>
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_40%)]" />
-            <div className="relative grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
-              <div className="space-y-6">
-                <div className="rounded-2xl bg-white px-6 py-5 shadow-lg">
-                  <CompanyLogo
-                    name={quote.company.name}
-                    legalName={quote.company.legalName}
-                    logoUrl={companyHeaderLogoUrl(quote.company)}
-                    variant="public"
-                  />
-                </div>
+            <div className="relative grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+              <div className="space-y-7">
+                <CompanyLogo
+                  name={quote.company.name}
+                  legalName={quote.company.legalName}
+                  logoUrl={companyHeaderLogoUrl(quote.company)}
+                  variant="public"
+                />
                 <div>
                   <p className="text-sm font-medium uppercase tracking-[0.18em] text-white/70">Vehicle transportation quote</p>
-                  <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">{quote.quoteNumber}</h1>
-                  <p className="mt-3 text-xl text-white/90">Prepared for {quote.customerSnapshot.name}</p>
+                  <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl lg:text-[3.25rem]">{quote.quoteNumber}</h1>
+                  <p className="mt-3 max-w-xl text-lg text-white/90 sm:text-xl">Prepared for {quote.customerSnapshot.name}</p>
                 </div>
                 <StatusPill status={quote.status} accepted={isAccepted} declined={isDeclined} />
               </div>
@@ -170,17 +172,18 @@ export default async function AcceptQuotePage({
               <Card className={cn("border-0 shadow-lg ring-2", isKeener ? "bg-slate-50 ring-slate-200" : "bg-sky-50 ring-sky-200")}>
                 <CardHeader>
                   <CardTitle className="text-xl">Your transportation quote</CardTitle>
-                  <CardDescription>Review your service price, deposit, and remaining balance.</CardDescription>
+                  <CardDescription>{quoteModel.pricingCardDescription}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
                   <PricingRow
-                    label="Transportation Service Price"
+                    label={quoteModel.customerServicePriceLabel}
                     value={currency(quote.customerTotal.toString())}
                     emphasis
                     accent={brandAccent}
                   />
-                  <PricingRow label="Deposit Due Today" value={currency(quote.depositDue.toString())} />
-                  <PricingRow label="Remaining Carrier Balance" value={currency(quote.balanceDue.toString())} />
+                  <PricingRow label={quoteModel.depositLabel} value={currency(quote.depositDue.toString())} />
+                  <PricingRow label={quoteModel.balanceDueLabel} value={currency(quote.balanceDue.toString())} />
+                  <p className="text-xs leading-5 text-muted-foreground">{quoteModel.balanceDueHelper}</p>
 
                   {breakdownItems.length > 0 ? (
                     <details className="rounded-xl border bg-white/80 p-4">

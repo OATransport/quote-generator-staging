@@ -19,6 +19,7 @@ import {
 import { QuoteFieldBadge } from "@/components/quote-field-badge";
 import { companyCompactLogoUrl } from "@/lib/company-branding";
 import { buildInitialPreview, breakdownFeesFromQuoteFees } from "@/lib/quote-form-preview";
+import { formatVehicleSummary, resolveDefaultQuoteMode } from "@/lib/quote-model";
 import { resolveLiveQuoteUrl } from "@/lib/live-quote-url";
 import { markQuoteNotificationsRead } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
@@ -69,7 +70,12 @@ export default async function EditQuotePage({
   const syncFeedbackMessage = query.syncMessage ? decodeURIComponent(query.syncMessage) : null;
   const liveQuoteUrl = resolveLiveQuoteUrl(quote);
   const routeSummary = formatRouteSummaryShort(quote.pickupCity, quote.pickupState, quote.deliveryCity, quote.deliveryState);
-  const vehicleSummary = formatVehicleSummary(vehicle);
+  const vehicleSummary = formatVehicleSummary({
+    year: vehicle?.year?.toString() ?? null,
+    make: vehicle?.make ?? null,
+    model: vehicle?.model ?? null,
+    type: vehicle?.type ?? null,
+  });
   const isArchived = Boolean(quote.archivedAt);
 
   const initialPreview = buildInitialPreview({
@@ -82,13 +88,13 @@ export default async function EditQuotePage({
     internalNotes: quote.internalNotes ?? "",
     carrierNotes: pricingData.carrierNotes,
     routeSummary,
+    vehicleSummary,
+    quoteMode: resolveDefaultQuoteMode({ quoteMode: quote.quoteMode, companyName: quote.company.name }),
   });
 
   const previewContext = {
     customerName: quote.customerSnapshot.name,
-    vehicleSummary,
     liveQuoteUrl,
-    routeSummary,
     ghlOpportunityId: quote.ghlOpportunityId,
     syncStatusLabel: latestGhlSync
       ? `${latestGhlSync.status} · ${latestGhlSync.createdAt.toLocaleString()}`
@@ -194,6 +200,7 @@ export default async function EditQuotePage({
             <QuoteEditForm
               quoteId={quote.id}
               quoteMode={quote.quoteMode}
+              companyName={quote.company.name}
               status={quote.status}
               customerTotal={Number(quote.customerTotal)}
               depositDue={Number(quote.depositDue)}
@@ -211,7 +218,17 @@ export default async function EditQuotePage({
               deliveryState={quote.deliveryState ?? ""}
               deliveryZip={quote.deliveryZip ?? ""}
               transportType={quote.trailerType ?? ""}
-              pickupDate={quote.pickupDate ? quote.pickupDate.toISOString().slice(0, 10) : quote.deliveryWindow ?? ""}
+              pickupDateWindow={
+                quote.pickupDate
+                  ? quote.pickupDate.toISOString().slice(0, 10)
+                  : quote.deliveryWindow ?? ""
+              }
+              vehicleYear={vehicle?.year?.toString() ?? ""}
+              vehicleMake={vehicle?.make ?? ""}
+              vehicleModel={vehicle?.model ?? ""}
+              vehicleType={vehicle?.type ?? ""}
+              vehicleCondition={vehicle?.condition ?? ""}
+              vehicleNotes={vehicle?.notes ?? ""}
               breakdownFees={pricingData.breakdownFees}
             />
           </div>
@@ -336,13 +353,6 @@ function extractQuotePricingData(
     showItemizedBreakdown: readShowItemizedBreakdown(mapped),
     breakdownFees: breakdownFeesFromQuoteFees(mapped.filter((fee) => !isBreakdownMetaFee(fee))),
   };
-}
-
-function formatVehicleSummary(
-  vehicle: { year?: string | number | null; make?: string | null; model?: string | null; type?: string | null } | undefined,
-) {
-  const parts = [vehicle?.year, vehicle?.make, vehicle?.model, vehicle?.type].filter(Boolean);
-  return parts.length ? parts.join(" ") : "Vehicle not specified";
 }
 
 function CompanyBadge({ name }: { name: string }) {

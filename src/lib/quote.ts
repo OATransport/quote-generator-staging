@@ -28,9 +28,9 @@ export type QuoteWithRelations = Quote & {
 
 export function quoteModeLabel(mode: string) {
   const labels: Record<string, string> = {
-    OAT_DIRECT: "OAT Direct",
-    KEENER_LOGISTICS: "Keener Logistics",
-    OAT_IF_BROKERED: "OAT If Brokered",
+    OAT_DIRECT: "OAT Direct Carrier Service",
+    KEENER_LOGISTICS: "Keener Logistics Transport",
+    OAT_IF_BROKERED: "OAT Brokered Transport",
   };
   return labels[mode] ?? mode;
 }
