@@ -2,6 +2,8 @@ export type ZipLookupResult = {
   zip: string;
   city: string;
   state: string;
+  latitude: number;
+  longitude: number;
 };
 
 export type ZipLookupError = {
@@ -30,17 +32,24 @@ export async function lookupZip(zip: string): Promise<ZipLookupResult | ZipLooku
     }
 
     const data = (await response.json()) as {
-      places?: Array<{ "place name"?: string; "state abbreviation"?: string }>;
+      places?: Array<{
+        "place name"?: string;
+        "state abbreviation"?: string;
+        latitude?: string;
+        longitude?: string;
+      }>;
     };
     const place = data.places?.[0];
     const city = place?.["place name"]?.trim();
     const state = place?.["state abbreviation"]?.trim();
+    const latitude = Number(place?.latitude);
+    const longitude = Number(place?.longitude);
 
-    if (!city || !state) {
+    if (!city || !state || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       return { error: "ZIP lookup returned incomplete data. Enter city and state manually." };
     }
 
-    return { zip: normalized, city, state };
+    return { zip: normalized, city, state, latitude, longitude };
   } catch {
     return { error: "ZIP lookup is temporarily unavailable. Enter city and state manually." };
   }

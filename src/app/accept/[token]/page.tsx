@@ -19,7 +19,9 @@ import { companyHeaderLogoUrl } from "@/lib/company-branding";
 import { isKeenerCompany, resolveCompanyContact } from "@/lib/company-contact";
 import { getQuoteModelConfig } from "@/lib/quote-model";
 import { isQuotePubliclyActive } from "@/lib/quote-active";
-import { isBreakdownMetaFee, readShowItemizedBreakdown } from "@/lib/quote-pricing";
+import { getPublicBreakdownItems } from "@/lib/quote-breakdown";
+import { lookupZip } from "@/lib/zip-lookup";
+import { readShowItemizedBreakdown } from "@/lib/quote-pricing";
 import { prisma } from "@/lib/prisma";
 import { formatRouteLocation, formatRouteSummaryShort } from "@/lib/route-format";
 import { currency, cn } from "@/lib/utils";
@@ -73,14 +75,9 @@ export default async function AcceptQuotePage({
     quote.quoteMode === "KEENER_LOGISTICS" || isKeener ? "KEENER_LOGISTICS" : quote.quoteMode,
   );
   const showItemizedBreakdown = readShowItemizedBreakdown(quote.fees);
-  const breakdownItems = quote.fees.filter(
-    (fee) =>
-      fee.feeType === "CUSTOM" &&
-      !isBreakdownMetaFee(fee) &&
-      !fee.isInternalOnly &&
-      fee.showOnPdf &&
-      showItemizedBreakdown,
-  );
+  const breakdownItems = getPublicBreakdownItems(quote.fees, showItemizedBreakdown);
+  const pickupCoordinate = quote.pickupZip ? await resolveRouteCoordinate(quote.pickupZip) : null;
+  const deliveryCoordinate = quote.deliveryZip ? await resolveRouteCoordinate(quote.deliveryZip) : null;
   const brandGradient = isKeener ? "from-slate-950 via-slate-900 to-slate-800" : "from-sky-950 via-sky-900 to-sky-800";
   const brandAccent = isKeener ? "text-slate-900" : "text-sky-900";
   const pickupDateLabel = quote.pickupDate
@@ -111,6 +108,11 @@ export default async function AcceptQuotePage({
                   <p className="text-sm font-medium uppercase tracking-[0.18em] text-white/70">Vehicle transportation quote</p>
                   <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl lg:text-[3.25rem]">{quote.quoteNumber}</h1>
                   <p className="mt-3 max-w-xl text-lg text-white/90 sm:text-xl">Prepared for {quote.customerSnapshot.name}</p>
+                  {quote.validUntil ? (
+                    <p className="mt-2 text-sm text-white/75">
+                      Valid until {quote.validUntil.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+                    </p>
+                  ) : null}
                 </div>
                 <StatusPill status={quote.status} accepted={isAccepted} declined={isDeclined} />
               </div>
@@ -149,7 +151,14 @@ export default async function AcceptQuotePage({
               </AlertBanner>
             ) : null}
 
-            <PublicQuoteRouteVisual pickup={pickup} delivery={delivery} routeSummary={routeSummary} isKeener={isKeener} />
+            <PublicQuoteRouteVisual
+              pickup={pickup}
+              delivery={delivery}
+              routeSummary={routeSummary}
+              isKeener={isKeener}
+              pickupCoordinate={pickupCoordinate}
+              deliveryCoordinate={deliveryCoordinate}
+            />
 
             <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
               <Card className="border-0 shadow-md ring-1 ring-black/5">
@@ -175,33 +184,35 @@ export default async function AcceptQuotePage({
                   <CardDescription>{quoteModel.pricingCardDescription}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
-                  <PricingRow
-                    label={quoteModel.customerServicePriceLabel}
-                    value={currency(quote.customerTotal.toString())}
-                    emphasis
-                    accent={brandAccent}
-                  />
-                  <PricingRow label={quoteModel.depositLabel} value={currency(quote.depositDue.toString())} />
-                  <PricingRow label={quoteModel.balanceDueLabel} value={currency(quote.balanceDue.toString())} />
-                  <p className="text-xs leading-5 text-muted-foreground">{quoteModel.balanceDueHelper}</p>
-
-                  {breakdownItems.length > 0 ? (
-                    <details className="rounded-xl border bg-white/80 p-4">
-                      <summary className="cursor-pointer text-sm font-semibold">View itemized breakdown</summary>
-                      <div className="mt-3 space-y-2">
+                  {showItemizedBreakdown && breakdownItems.length > 0 ? (
+                    <>
+                      <div className="space-y-2">
                         {breakdownItems.map((fee) => (
-                          <div key={fee.id} className="flex justify-between gap-3 text-sm">
-                            <span>{fee.label}</span>
-                            <span className="font-medium">{currency(fee.amount.toString())}</span>
-                          </div>
+                          <PricingRow key={fee.id} label={fee.label} value={currency(fee.amount.toString())} />
                         ))}
                       </div>
-                    </details>
+                      <PricingRow
+                        label="Transportation Service Total"
+                        value={currency(quote.customerTotal.toString())}
+                        emphasis
+                        accent={brandAccent}
+                      />
+                    </>
                   ) : (
-                    <div className="rounded-xl border border-dashed bg-white/70 px-4 py-3 text-sm text-muted-foreground">
-                      Vehicle Transportation Service — one clear quoted price for your shipment.
-                    </div>
+                    <PricingRow
+                      label="Vehicle Transportation Service"
+                      value={currency(quote.customerTotal.toString())}
+                      emphasis
+                      accent={brandAccent}
+                    />
                   )}
+
+                  <PricingRow label="Deposit Due Today" value={currency(quote.depositDue.toString())} />
+                  <PricingRow label="Balance Due on Delivery" value={currency(quote.balanceDue.toString())} />
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Deposit is due when accepting. Remaining balance is due on delivery unless otherwise noted.
+                  </p>
+                  <p className="text-xs leading-5 text-muted-foreground">{quoteModel.balanceDueHelper}</p>
                 </CardContent>
               </Card>
             </div>
@@ -363,6 +374,12 @@ function InactiveQuotePage({
       </div>
     </div>
   );
+}
+
+async function resolveRouteCoordinate(zip: string) {
+  const result = await lookupZip(zip);
+  if ("error" in result) return null;
+  return { latitude: result.latitude, longitude: result.longitude };
 }
 
 function SecondaryAccordion({

@@ -54,8 +54,8 @@ export function QuoteLivePreview({
             </div>
           </div>
           {preview.showItemizedBreakdown && preview.breakdownLineItems.some((item) => item.isCustomerVisible) ? (
-            <div className="space-y-1 border-t pt-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Itemized breakdown</p>
+            <div className="space-y-2 border-t pt-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Itemized customer breakdown</p>
               {preview.breakdownLineItems
                 .filter((item) => item.isCustomerVisible)
                 .map((item) => (
@@ -64,8 +64,16 @@ export function QuoteLivePreview({
                     <span className="font-medium">{currency(item.amount)}</span>
                   </div>
                 ))}
+              <div className="flex justify-between gap-2 border-t pt-2 font-semibold">
+                <span>Transportation Service Total</span>
+                <span>{currency(preview.customerTotal)}</span>
+              </div>
             </div>
-          ) : null}
+          ) : (
+            <div className="rounded-lg border border-dashed bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+              Simple total — public quote shows Vehicle Transportation Service only.
+            </div>
+          )}
           <div className="border-t pt-3">
             <LiveQuoteLinkField url={liveQuoteUrl} label="Live quote link" helperText="" inputId="liveQuoteLinkPreview" />
           </div>

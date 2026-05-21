@@ -249,6 +249,11 @@ export default async function EditQuotePage({
 
             <SidebarCard title="Quote totals">
               <QuoteSidebarTotalsLive />
+              {quote.validUntil ? (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Valid until {quote.validUntil.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+                </p>
+              ) : null}
             </SidebarCard>
 
             <SidebarCard title="Imported snapshot">

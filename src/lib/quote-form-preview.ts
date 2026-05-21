@@ -3,8 +3,8 @@ import {
   breakdownMatchesCustomerPrice,
   calculateQuotePricing,
   isBreakdownMetaFee,
-  sumCustomerBreakdownTotal,
 } from "@/lib/quote-pricing";
+import { sumCustomerBreakdownFees } from "@/lib/quote-breakdown";
 import { formatVehicleSummary } from "@/lib/quote-model";
 import { formatRouteSummaryShort } from "@/lib/route-format";
 
@@ -29,26 +29,28 @@ export function getFeeRowId(fee: Pick<QuoteFeeRowData, "id" | "feeType" | "label
 
 export function parseFeesFromFormData(formData: FormData): ParsedFormFee[] {
   const rowIds = formData.getAll("feeRowId").map(String);
-  const customerVisible = new Set(formData.getAll("feeCustomerVisible").map(String));
-  const internalOnly = new Set(formData.getAll("feeInternalOnly").map(String));
 
   return rowIds.map((rowId) => {
     const feeType = String(formData.get(`feeType_${rowId}`) ?? "CUSTOM");
     const label = String(formData.get(`feeLabel_${rowId}`) ?? "").trim();
-    const isInternal = internalOnly.has(rowId);
-    const isCustomerVisible = customerVisible.has(rowId);
+    const visibility = String(formData.get(`feeVisibility_${rowId}`) ?? "customer");
+    const isInternal = visibility === "internal";
     return {
       rowId,
       feeType,
       label: label || "Line item",
       amount: Number(formData.get(`feeAmount_${rowId}`) ?? 0),
       isEnabled: true,
-      showOnPdf: isCustomerVisible,
+      showOnPdf: !isInternal,
       isInternalOnly: isInternal,
       internalNote: String(formData.get(`feeInternalNote_${rowId}`) ?? "") || null,
       sortOrder: Number(formData.get(`feeSortOrder_${rowId}`) ?? 0),
     };
   });
+}
+
+export function readBreakdownModeFromFormData(formData: FormData) {
+  return formData.get("breakdownMode") === "itemized";
 }
 
 export type QuoteFormPreview = {
@@ -98,9 +100,11 @@ function buildPreviewCore(input: {
       amount: Number(fee.amount),
       isCustomerVisible: fee.showOnPdf && !fee.isInternalOnly,
       isInternalOnly: fee.isInternalOnly,
+      feeType: "CUSTOM" as const,
+      showOnPdf: fee.showOnPdf,
     }));
 
-  const breakdownTotal = sumCustomerBreakdownTotal(breakdownFees);
+  const breakdownTotal = input.showItemizedBreakdown ? sumCustomerBreakdownFees(breakdownFees) : 0;
   const pricing = calculateQuotePricing({
     customerPrice: input.customerPrice,
     depositDue: input.depositDue,
@@ -134,7 +138,7 @@ function buildPreviewCore(input: {
 
 export function buildPreviewFromFormData(formData: FormData): QuoteFormPreview {
   const fees = parseFeesFromFormData(formData);
-  const showItemizedBreakdown = formData.get("showItemizedBreakdown") === "on";
+  const showItemizedBreakdown = readBreakdownModeFromFormData(formData);
 
   return buildPreviewCore({
     fees,

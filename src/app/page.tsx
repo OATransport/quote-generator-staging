@@ -10,6 +10,7 @@ import {
   Plus,
   XCircle,
 } from "lucide-react";
+import { ReleaseReadinessCard } from "@/components/release-readiness-card";
 import { CompanyBadge, FollowUpBadge, QuoteStatusBadge } from "@/components/quote-status-badges";
 import { getQuoteFollowUpReasons, quoteNeedsFollowUp } from "@/lib/quote-follow-up";
 import { formatQuoteRoute } from "@/lib/quote-list";
@@ -148,6 +149,8 @@ export default async function DashboardPage() {
           </div>
 
           <div className="space-y-6">
+            <ReleaseReadinessCard />
+
             <Card className="border-primary/20 bg-primary/5 shadow-sm">
               <CardHeader>
                 <CardTitle className="text-base">Accepted revenue</CardTitle>

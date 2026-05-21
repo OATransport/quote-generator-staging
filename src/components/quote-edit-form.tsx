@@ -274,6 +274,7 @@ export function QuoteEditForm({
           customerNotes={customerNotes}
           internalNotes={internalNotes}
           carrierNotes={carrierNotes}
+          onPreviewRefresh={refreshPreview}
         />
 
         <div className="sticky bottom-0 z-10 -mx-6 border-t bg-background/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:-mx-8 lg:px-8">

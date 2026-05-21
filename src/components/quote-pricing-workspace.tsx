@@ -21,6 +21,7 @@ type QuotePricingWorkspaceProps = {
   customerNotes: string;
   internalNotes: string;
   carrierNotes: string;
+  onPreviewRefresh?: () => void;
 };
 
 export function QuotePricingWorkspace({
@@ -33,6 +34,7 @@ export function QuotePricingWorkspace({
   customerNotes,
   internalNotes,
   carrierNotes,
+  onPreviewRefresh,
 }: QuotePricingWorkspaceProps) {
   const model = getQuoteModelConfig(quoteMode);
 
@@ -74,13 +76,6 @@ export function QuotePricingWorkspace({
                 <p className="mt-2 text-xs leading-5 text-muted-foreground">{model.balanceDueHelper}</p>
               </div>
             </div>
-
-            <QuoteBreakdownSection showItemizedBreakdown={showItemizedBreakdown} />
-            {preview.showItemizedBreakdown && !preview.breakdownMatchesPrice && preview.breakdownTotal > 0 ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                Breakdown total does not match {model.customerServicePriceLabel.toLowerCase()}.
-              </div>
-            ) : null}
 
             <div className="space-y-2">
               <Label htmlFor="customerNotes">Customer notes</Label>
@@ -194,6 +189,14 @@ export function QuotePricingWorkspace({
               <Label htmlFor="internalNotes">Internal notes</Label>
               <Textarea id="internalNotes" name="internalNotes" defaultValue={internalNotes} />
             </div>
+          </section>
+
+          <section className="space-y-4 border-t pt-8">
+            <QuoteBreakdownSection
+              showItemizedBreakdown={showItemizedBreakdown}
+              preview={preview}
+              onPreviewRefresh={onPreviewRefresh}
+            />
           </section>
         </CardContent>
       </Card>
