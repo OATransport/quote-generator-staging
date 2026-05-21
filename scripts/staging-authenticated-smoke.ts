@@ -70,7 +70,7 @@ async function importOpportunity(page: import("playwright").Page, account: "oat"
     await page.goto(`${STAGING}/import?q=${oppId}&account=${account}`, { waitUntil: "networkidle" });
   }
   const editHtml = await page.content();
-  const liveLink = await page.locator("#liveQuoteLink").inputValue().catch(() => "");
+  const liveLink = await page.locator("#liveQuoteLinkPreview").inputValue().catch(() => "");
   const quoteNumber = editHtml.match(/Q-[A-Z0-9-]+/)?.[0] ?? null;
   return { searchOk, quoteNumber, liveLink, editHtml };
 }

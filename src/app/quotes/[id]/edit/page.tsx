@@ -184,7 +184,7 @@ export default async function EditQuotePage({
 
           <aside className="space-y-4">
             <SidebarCard title="Customer delivery" description="Primary delivery method — no PDF required.">
-              <LiveQuoteLinkField url={liveQuoteUrl} />
+              <LiveQuoteLinkField url={liveQuoteUrl} inputId="liveQuoteLinkSidebar" />
               {quote.quotePdfUrl ? (
                 <Button asChild variant="outline" size="sm" className="mt-3 w-full">
                   <Link href={quote.quotePdfUrl} target="_blank" rel="noopener noreferrer">

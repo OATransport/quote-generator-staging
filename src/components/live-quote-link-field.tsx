@@ -10,10 +10,12 @@ export function LiveQuoteLinkField({
   url,
   label = "Live quote link",
   helperText = "Use this live quote link as the primary customer-facing quote. PDF is optional.",
+  inputId = "liveQuoteLink",
 }: {
   url: string;
   label?: string;
   helperText?: string;
+  inputId?: string;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -29,10 +31,10 @@ export function LiveQuoteLinkField({
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="liveQuoteLink">{label}</Label>
-      <p className="text-sm text-muted-foreground">{helperText}</p>
+      {label ? <Label htmlFor={inputId}>{label}</Label> : null}
+      {helperText ? <p className="text-sm text-muted-foreground">{helperText}</p> : null}
       <div className="flex gap-2">
-        <Input id="liveQuoteLink" readOnly value={url} className="font-mono text-xs" />
+        <Input id={inputId} readOnly value={url} className="font-mono text-xs" aria-label="Live quote link URL" />
         <Button type="button" variant="secondary" onClick={copyLink} aria-label="Copy live quote link">
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
         </Button>

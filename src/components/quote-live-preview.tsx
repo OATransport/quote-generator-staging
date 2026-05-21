@@ -63,7 +63,7 @@ export function QuoteLivePreview({
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Live quote link</p>
               <QuoteFieldBadge variant="live-link-primary" />
             </div>
-            <LiveQuoteLinkField url={liveQuoteUrl} label="" helperText="" />
+            <LiveQuoteLinkField url={liveQuoteUrl} label="" helperText="" inputId="liveQuoteLinkPreview" />
           </div>
           {preview.customerNotes ? (
             <div className="rounded-md bg-muted/60 p-3">
