@@ -1,0 +1,18 @@
+[
+  { "appFieldKey": "customerNotes", "ghlCustomFieldId": "Vt55SEy4piwIfVoFNMDM", "ghlCustomFieldName": "Shipment Notes" },
+  { "appFieldKey": "deliveryAddress", "ghlCustomFieldId": "QnsLu8ZzbrEfbSHWE2QB", "ghlCustomFieldName": "Delivery Address" },
+  { "appFieldKey": "deliveryCity", "ghlCustomFieldId": "bBrbyG5O7ZH9BePRDnOG", "ghlCustomFieldName": "Delivery City" },
+  { "appFieldKey": "deliveryState", "ghlCustomFieldId": "tDXAuYSSxE8HqmmsciGa", "ghlCustomFieldName": "Delivery State" },
+  { "appFieldKey": "deliveryZip", "ghlCustomFieldId": "bleGDX8AlqDqvFDEQCBr", "ghlCustomFieldName": "Delivery Zip" },
+  { "appFieldKey": "pickupAddress", "ghlCustomFieldId": "VvTyXTc12g2WisAqYUmn", "ghlCustomFieldName": "Pickup Address" },
+  { "appFieldKey": "pickupCity", "ghlCustomFieldId": "glKyM53bSnn7sW7Lv0jl", "ghlCustomFieldName": "Pickup City" },
+  { "appFieldKey": "pickupDate", "ghlCustomFieldId": "2MnOmIZN1M9nyyptqcth", "ghlCustomFieldName": "Pickup Date" },
+  { "appFieldKey": "pickupState", "ghlCustomFieldId": "Mtqf3tMeZVpi4e9GOkZS", "ghlCustomFieldName": "Pickup State" },
+  { "appFieldKey": "pickupZip", "ghlCustomFieldId": "KbT8TNWuqkHd4XxQDbvH", "ghlCustomFieldName": "Pickup Zip" },
+  { "appFieldKey": "vehicleIsRunning", "ghlCustomFieldId": "aMa8w1jbTMaY2UghJHVo", "ghlCustomFieldName": "Vehicle Running" },
+  { "appFieldKey": "vehicleMake", "ghlCustomFieldId": "T56wSkWRK6HK82sWPE8f", "ghlCustomFieldName": "Vehicle Make" },
+  { "appFieldKey": "vehicleModel", "ghlCustomFieldId": "oEdXx86c6J8GUPSMa4kB", "ghlCustomFieldName": "Vehicle Model" },
+  { "appFieldKey": "vehicleNotes", "ghlCustomFieldId": "pMAtV1VZEF7Ng0d0bs1s", "ghlCustomFieldName": "Vehicles Summary" },
+  { "appFieldKey": "vehicleType", "ghlCustomFieldId": "CTrm9cVBlSRkeXAuB3Xf", "ghlCustomFieldName": "Vehicle Type" },
+  { "appFieldKey": "vehicleYear", "ghlCustomFieldId": "YpKh1D0AjU1qFL9n2CAe", "ghlCustomFieldName": "Vehicle Year" }
+]

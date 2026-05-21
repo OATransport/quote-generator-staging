@@ -1,0 +1,292 @@
+[
+  {
+    "id": "cmpey3t80000gi702q54iycsm",
+    "appFieldKey": "balanceDue",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "balance_due",
+    "fallbackPath": "customFields.balance_due",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:59.760Z",
+    "updatedAt": "2026-05-21T03:42:59.760Z"
+  },
+  {
+    "id": "cmpey3tgo000ii7025sto8e3a",
+    "appFieldKey": "customerNotes",
+    "ghlCustomFieldId": "Vt55SEy4piwIfVoFNMDM",
+    "ghlCustomFieldName": "Shipment Notes",
+    "fallbackPath": null,
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:43:00.073Z",
+    "updatedAt": "2026-05-21T04:37:14.528Z"
+  },
+  {
+    "id": "cmpey3sz8000ei702v0jbpxy8",
+    "appFieldKey": "customerTotal",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "customer_total",
+    "fallbackPath": "monetaryValue",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:59.445Z",
+    "updatedAt": "2026-05-21T03:42:59.445Z"
+  },
+  {
+    "id": "cmpey3s050006i70202t4c54p",
+    "appFieldKey": "deliveryAddress",
+    "ghlCustomFieldId": "QnsLu8ZzbrEfbSHWE2QB",
+    "ghlCustomFieldName": "Delivery Address",
+    "fallbackPath": null,
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:58.181Z",
+    "updatedAt": "2026-05-21T04:37:14.203Z"
+  },
+  {
+    "id": "cmpey3s4i0007i7024y3oco7z",
+    "appFieldKey": "deliveryCity",
+    "ghlCustomFieldId": "bBrbyG5O7ZH9BePRDnOG",
+    "ghlCustomFieldName": "Delivery City",
+    "fallbackPath": null,
+    "isRequired": true,
+    "createdAt": "2026-05-21T03:42:58.338Z",
+    "updatedAt": "2026-05-21T04:37:14.231Z"
+  },
+  {
+    "id": "cmpey3shh000ai702v2tw559d",
+    "appFieldKey": "deliveryContactName",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "delivery_contact_name",
+    "fallbackPath": "customFields.delivery_contact_name",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:58.806Z",
+    "updatedAt": "2026-05-21T03:42:58.806Z"
+  },
+  {
+    "id": "cmpey3slw000bi702nor43z8y",
+    "appFieldKey": "deliveryContactPhone",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "delivery_contact_phone",
+    "fallbackPath": "customFields.delivery_contact_phone",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:58.964Z",
+    "updatedAt": "2026-05-21T03:42:58.964Z"
+  },
+  {
+    "id": "cmpey3s8r0008i7024wa5o6qx",
+    "appFieldKey": "deliveryState",
+    "ghlCustomFieldId": "tDXAuYSSxE8HqmmsciGa",
+    "ghlCustomFieldName": "Delivery State",
+    "fallbackPath": null,
+    "isRequired": true,
+    "createdAt": "2026-05-21T03:42:58.492Z",
+    "updatedAt": "2026-05-21T04:37:14.265Z"
+  },
+  {
+    "id": "cmpey3sqc000ci702v6xt61m9",
+    "appFieldKey": "deliveryWindow",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "delivery_window",
+    "fallbackPath": "customFields.delivery_window",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:59.124Z",
+    "updatedAt": "2026-05-21T03:42:59.124Z"
+  },
+  {
+    "id": "cmpey3sd90009i702ise6pwoh",
+    "appFieldKey": "deliveryZip",
+    "ghlCustomFieldId": "bleGDX8AlqDqvFDEQCBr",
+    "ghlCustomFieldName": "Delivery Zip",
+    "fallbackPath": null,
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:58.654Z",
+    "updatedAt": "2026-05-21T04:37:14.300Z"
+  },
+  {
+    "id": "cmpey3t3l000fi702abei72qj",
+    "appFieldKey": "depositDue",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "deposit_due",
+    "fallbackPath": "customFields.deposit_due",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:59.601Z",
+    "updatedAt": "2026-05-21T03:42:59.601Z"
+  },
+  {
+    "id": "cmpey3tc8000hi702wq7zjyxb",
+    "appFieldKey": "internalEstimatedCarrierPay",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "estimated_carrier_pay",
+    "fallbackPath": "customFields.estimated_carrier_pay",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:59.913Z",
+    "updatedAt": "2026-05-21T03:42:59.913Z"
+  },
+  {
+    "id": "cmpey3tl3000ji7029w5os96u",
+    "appFieldKey": "internalNotes",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "internal_notes",
+    "fallbackPath": "customFields.internal_notes",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:43:00.231Z",
+    "updatedAt": "2026-05-21T03:43:00.231Z"
+  },
+  {
+    "id": "cmpey3r7s0000i702duqlxvhp",
+    "appFieldKey": "pickupAddress",
+    "ghlCustomFieldId": "VvTyXTc12g2WisAqYUmn",
+    "ghlCustomFieldName": "Pickup Address",
+    "fallbackPath": null,
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:57.161Z",
+    "updatedAt": "2026-05-21T04:37:14.000Z"
+  },
+  {
+    "id": "cmpey3reo0001i7020z5s4ge3",
+    "appFieldKey": "pickupCity",
+    "ghlCustomFieldId": "glKyM53bSnn7sW7Lv0jl",
+    "ghlCustomFieldName": "Pickup City",
+    "fallbackPath": null,
+    "isRequired": true,
+    "createdAt": "2026-05-21T03:42:57.409Z",
+    "updatedAt": "2026-05-21T04:37:14.074Z"
+  },
+  {
+    "id": "cmpey3rr80004i702c7s442zg",
+    "appFieldKey": "pickupContactName",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "pickup_contact_name",
+    "fallbackPath": "customFields.pickup_contact_name",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:57.860Z",
+    "updatedAt": "2026-05-21T03:42:57.860Z"
+  },
+  {
+    "id": "cmpey3rvv0005i702alynamao",
+    "appFieldKey": "pickupContactPhone",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "pickup_contact_phone",
+    "fallbackPath": "customFields.pickup_contact_phone",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:58.027Z",
+    "updatedAt": "2026-05-21T03:42:58.027Z"
+  },
+  {
+    "id": "cmpf01kc70004b7pxgwxefjxm",
+    "appFieldKey": "pickupDate",
+    "ghlCustomFieldId": "2MnOmIZN1M9nyyptqcth",
+    "ghlCustomFieldName": "Pickup Date",
+    "fallbackPath": null,
+    "isRequired": false,
+    "createdAt": "2026-05-21T04:37:14.168Z",
+    "updatedAt": "2026-05-21T04:37:14.168Z"
+  },
+  {
+    "id": "cmpey3rj00002i7027ypvf4hm",
+    "appFieldKey": "pickupState",
+    "ghlCustomFieldId": "Mtqf3tMeZVpi4e9GOkZS",
+    "ghlCustomFieldName": "Pickup State",
+    "fallbackPath": null,
+    "isRequired": true,
+    "createdAt": "2026-05-21T03:42:57.564Z",
+    "updatedAt": "2026-05-21T04:37:14.104Z"
+  },
+  {
+    "id": "cmpey3rn80003i7027z5t4583",
+    "appFieldKey": "pickupZip",
+    "ghlCustomFieldId": "KbT8TNWuqkHd4XxQDbvH",
+    "ghlCustomFieldName": "Pickup Zip",
+    "fallbackPath": null,
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:57.716Z",
+    "updatedAt": "2026-05-21T04:37:14.136Z"
+  },
+  {
+    "id": "cmpey3sut000di702hpfjosvf",
+    "appFieldKey": "trailerType",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "trailer_type",
+    "fallbackPath": "customFields.trailer_type",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:42:59.285Z",
+    "updatedAt": "2026-05-21T03:42:59.285Z"
+  },
+  {
+    "id": "cmpey3u6r000oi702wdp5ysa2",
+    "appFieldKey": "vehicleCondition",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "vehicle_condition",
+    "fallbackPath": "customFields.vehicle_condition",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:43:01.011Z",
+    "updatedAt": "2026-05-21T03:43:01.011Z"
+  },
+  {
+    "id": "cmpey3uf7000qi702zbyu5twq",
+    "appFieldKey": "vehicleIsRunning",
+    "ghlCustomFieldId": "aMa8w1jbTMaY2UghJHVo",
+    "ghlCustomFieldName": "Vehicle Running",
+    "fallbackPath": null,
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:43:01.316Z",
+    "updatedAt": "2026-05-21T04:37:14.463Z"
+  },
+  {
+    "id": "cmpey3tts000li7027w9mnjww",
+    "appFieldKey": "vehicleMake",
+    "ghlCustomFieldId": "T56wSkWRK6HK82sWPE8f",
+    "ghlCustomFieldName": "Vehicle Make",
+    "fallbackPath": null,
+    "isRequired": true,
+    "createdAt": "2026-05-21T03:43:00.545Z",
+    "updatedAt": "2026-05-21T04:37:14.365Z"
+  },
+  {
+    "id": "cmpey3ty8000mi70297o6x3qd",
+    "appFieldKey": "vehicleModel",
+    "ghlCustomFieldId": "oEdXx86c6J8GUPSMa4kB",
+    "ghlCustomFieldName": "Vehicle Model",
+    "fallbackPath": null,
+    "isRequired": true,
+    "createdAt": "2026-05-21T03:43:00.704Z",
+    "updatedAt": "2026-05-21T04:37:14.397Z"
+  },
+  {
+    "id": "cmpey3ujj000ri702ukorsiqk",
+    "appFieldKey": "vehicleNotes",
+    "ghlCustomFieldId": "pMAtV1VZEF7Ng0d0bs1s",
+    "ghlCustomFieldName": "Vehicles Summary",
+    "fallbackPath": null,
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:43:01.472Z",
+    "updatedAt": "2026-05-21T04:37:14.497Z"
+  },
+  {
+    "id": "cmpey3u2o000ni702b89g641c",
+    "appFieldKey": "vehicleType",
+    "ghlCustomFieldId": "CTrm9cVBlSRkeXAuB3Xf",
+    "ghlCustomFieldName": "Vehicle Type",
+    "fallbackPath": null,
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:43:00.865Z",
+    "updatedAt": "2026-05-21T04:37:14.432Z"
+  },
+  {
+    "id": "cmpey3uau000pi702bh2pt0a3",
+    "appFieldKey": "vehicleVin",
+    "ghlCustomFieldId": null,
+    "ghlCustomFieldName": "vehicle_vin",
+    "fallbackPath": "customFields.vehicle_vin",
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:43:01.158Z",
+    "updatedAt": "2026-05-21T03:43:01.158Z"
+  },
+  {
+    "id": "cmpey3tpk000ki702qg4esh76",
+    "appFieldKey": "vehicleYear",
+    "ghlCustomFieldId": "YpKh1D0AjU1qFL9n2CAe",
+    "ghlCustomFieldName": "Vehicle Year",
+    "fallbackPath": null,
+    "isRequired": false,
+    "createdAt": "2026-05-21T03:43:00.392Z",
+    "updatedAt": "2026-05-21T04:37:14.333Z"
+  }
+]

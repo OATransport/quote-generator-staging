@@ -1,0 +1,11 @@
+node_modules
+.next
+.env
+.env.local
+.env.oat-verified
+.env.keener-verified
+dist
+coverage
+public/generated
+quote-generator-review.zip
+.DS_Store
