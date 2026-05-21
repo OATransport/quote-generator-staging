@@ -29,6 +29,30 @@ export function calculateQuotePricing(input: {
   };
 }
 
+/** Default deposit tiers based on customer transportation service price. */
+export function getRecommendedDeposit(customerTransportationPrice: number): number {
+  const price = Math.max(0, customerTransportationPrice);
+  if (price >= 5000) return 500;
+  if (price >= 4000) return 300;
+  if (price >= 2500) return 200;
+  if (price >= 1000) return 100;
+  return 0;
+}
+
+/** Apply recommended deposit only when current deposit is unset (zero). */
+export function applyRecommendedDepositIfUnset(customerTransportationPrice: number, currentDeposit: number): number {
+  if (currentDeposit > 0) return currentDeposit;
+  return getRecommendedDeposit(customerTransportationPrice);
+}
+
+/** True when saved deposit differs from recommended and should not be auto-updated. */
+export function isDepositManuallySet(currentDeposit: number, customerTransportationPrice: number): boolean {
+  const recommended = getRecommendedDeposit(customerTransportationPrice);
+  if (currentDeposit === recommended) return false;
+  if (currentDeposit === 0 && recommended > 0) return false;
+  return true;
+}
+
 export const BREAKDOWN_META_LABEL = "__itemized_breakdown_toggle__";
 
 export function isBreakdownMetaFee(fee: { label: string }) {

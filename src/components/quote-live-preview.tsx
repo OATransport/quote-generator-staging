@@ -1,6 +1,7 @@
 "use client";
 
 import { cn, currency } from "@/lib/utils";
+import { formatPublicDepositValue, hasDepositDue } from "@/lib/public-quote-deposit";
 import type { QuoteFormPreview } from "@/lib/quote-form-preview";
 import { LiveQuoteLinkField } from "@/components/live-quote-link-field";
 import { QuoteFieldBadge } from "@/components/quote-field-badge";
@@ -49,7 +50,10 @@ export function QuoteLivePreview({
           <div className="space-y-2 border-t pt-3">
             <SummaryMetric label={model.customerServicePriceLabel} value={currency(preview.customerTotal)} emphasis />
             <div className="grid grid-cols-2 gap-3">
-              <SummaryMetric label={model.depositLabel} value={currency(preview.depositDue)} />
+              <SummaryMetric
+                label={hasDepositDue(preview.depositDue) ? model.depositLabel : "No Deposit Due Today"}
+                value={formatPublicDepositValue(preview.depositDue)}
+              />
               <SummaryMetric label={model.balanceDueLabel} value={currency(preview.balanceDue)} />
             </div>
           </div>

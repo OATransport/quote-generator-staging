@@ -15,7 +15,7 @@ import { generateQuotePdf } from "@/lib/pdf";
 import { parseMoney, parseQuoteMode, parseQuoteStatus, toDecimal } from "@/lib/form-parsing";
 import { buildFeeRowsForSave, parseFeesFromFormData, readBreakdownModeFromFormData } from "@/lib/quote-form-preview";
 import { pricingBuildModeFromForm, resolveCustomerTransportationPrice } from "@/lib/pricing-build-mode";
-import { calculateQuotePricing } from "@/lib/quote-pricing";
+import { calculateQuotePricing, applyRecommendedDepositIfUnset } from "@/lib/quote-pricing";
 import { isQuotePubliclyActive } from "@/lib/quote-active";
 import { getRequestMeta } from "@/lib/request-meta";
 import { appUrl } from "@/lib/utils";
@@ -79,6 +79,7 @@ export async function createQuoteAction(formData: FormData) {
   const companyId = String(formData.get("companyId") ?? "");
   const customerSnapshotId = String(formData.get("customerSnapshotId") ?? "");
   const customerTotal = Number(formData.get("customerTotal") ?? 0);
+  const depositDue = applyRecommendedDepositIfUnset(customerTotal, 0);
   const quoteMode = String(formData.get("quoteMode") ?? "OAT_DIRECT") as QuoteMode;
   const count = await prisma.quote.count({ where: { createdAt: { gte: new Date(new Date().getFullYear(), 0, 1) } } });
   const secureAccessToken = randomUUID();
@@ -91,7 +92,8 @@ export async function createQuoteAction(formData: FormData) {
       companyId,
       customerSnapshotId,
       customerTotal,
-      balanceDue: customerTotal,
+      depositDue,
+      balanceDue: Math.max(0, customerTotal - depositDue),
       secureAccessToken,
       acceptanceUrl: appUrl(`/accept/${secureAccessToken}`),
     },

@@ -6,26 +6,26 @@ import {
   CheckCircle,
   ChevronDown,
   HelpCircle,
-  Mail,
-  Phone,
-  ShieldCheck,
   Truck,
   XCircle,
 } from "lucide-react";
 import { acceptQuoteAction, askQuoteQuestionAction, declineQuoteAction } from "@/app/actions";
 import { CompanyLogo } from "@/components/company-logo";
+import { PublicQuoteHero } from "@/components/public-quote-hero";
+import { PublicQuoteImportantDetails } from "@/components/public-quote-important-details";
+import { PublicQuotePricingCard } from "@/components/public-quote-pricing-card";
 import { PublicQuoteRouteVisual } from "@/components/public-quote-route-visual";
 import { companyHeaderLogoUrl } from "@/lib/company-branding";
 import { isKeenerCompany, resolveCompanyContact } from "@/lib/company-contact";
 import { getQuoteModelConfig } from "@/lib/quote-model";
 import { isQuotePubliclyActive } from "@/lib/quote-active";
 import { getPublicBreakdownItems } from "@/lib/quote-breakdown";
+import { hasDepositDue } from "@/lib/public-quote-deposit";
 import { lookupZip } from "@/lib/zip-lookup";
-import { buildPublicQuoteTerms } from "@/lib/public-quote-terms";
 import { readShowItemizedBreakdown } from "@/lib/quote-pricing";
 import { prisma } from "@/lib/prisma";
 import { formatRouteLocation, formatRouteSummaryShort } from "@/lib/route-format";
-import { currency, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -80,15 +80,10 @@ export default async function AcceptQuotePage({
   const pickupCoordinate = quote.pickupZip ? await resolveRouteCoordinate(quote.pickupZip) : null;
   const deliveryCoordinate = quote.deliveryZip ? await resolveRouteCoordinate(quote.deliveryZip) : null;
   const brandGradient = isKeener ? "from-slate-950 via-slate-900 to-slate-800" : "from-sky-950 via-sky-900 to-sky-800";
-  const brandAccent = isKeener ? "text-slate-900" : "text-sky-900";
   const pickupDateLabel = quote.pickupDate
     ? quote.pickupDate.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
     : quote.deliveryWindow || null;
-  const quoteTerms = buildPublicQuoteTerms({
-    quoteMode: quote.quoteMode === "KEENER_LOGISTICS" || isKeener ? "KEENER_LOGISTICS" : quote.quoteMode,
-    companyName: quote.company.name,
-    hasExpiration: Boolean(quote.validUntil),
-  });
+  const depositRequired = hasDepositDue(quote.depositDue);
 
   if (!isActive) {
     return (
@@ -97,46 +92,24 @@ export default async function AcceptQuotePage({
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc_0%,_#e2e8f0_100%)]">
-      <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:py-12">
-        <div className="overflow-hidden rounded-[28px] border border-white/60 bg-white shadow-2xl shadow-slate-300/30">
-          <div className={cn("relative px-6 py-10 text-white sm:px-10", `bg-gradient-to-br ${brandGradient}`)}>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_40%)]" />
-            <div className="relative grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
-              <div className="space-y-7">
-                <CompanyLogo
-                  name={quote.company.name}
-                  legalName={quote.company.legalName}
-                  logoUrl={companyHeaderLogoUrl(quote.company)}
-                  variant="public"
-                />
-                <div>
-                  <p className="text-sm font-medium uppercase tracking-[0.18em] text-white/70">Vehicle transportation quote</p>
-                  <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl lg:text-[3.25rem]">{quote.quoteNumber}</h1>
-                  <p className="mt-3 max-w-xl text-lg text-white/90 sm:text-xl">Prepared for {quote.customerSnapshot.name}</p>
-                  {quote.validUntil ? (
-                    <p className="mt-2 text-sm text-white/75">
-                      Valid until {quote.validUntil.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
-                    </p>
-                  ) : null}
-                </div>
-                <StatusPill status={quote.status} accepted={isAccepted} declined={isDeclined} />
-              </div>
+    <div className="min-h-screen bg-slate-100/80">
+      <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:py-10">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-300/25">
+          <PublicQuoteHero
+            companyName={quote.company.name}
+            legalName={quote.company.legalName}
+            logoUrl={companyHeaderLogoUrl(quote.company)}
+            quoteNumber={quote.quoteNumber}
+            customerName={quote.customerSnapshot.name}
+            status={quote.status}
+            validUntil={quote.validUntil}
+            isKeener={isKeener}
+            accepted={isAccepted}
+            declined={isDeclined}
+            contact={contact}
+          />
 
-              {contact ? (
-                <div className="rounded-2xl border border-white/15 bg-white/10 p-5 backdrop-blur-sm">
-                  <p className="text-sm font-semibold uppercase tracking-wide text-white/70">Contact {quote.company.name}</p>
-                  <div className="mt-4 space-y-3 text-sm">
-                    <ContactRow icon={Phone} href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`} label={contact.phone} />
-                    <ContactRow icon={Mail} href={`mailto:${contact.email}`} label={contact.email} />
-                    <ContactRow icon={ShieldCheck} href={contact.website} label={contact.websiteLabel} external />
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="space-y-10 px-6 py-8 sm:px-10 sm:py-12">
+          <div className="space-y-8 px-5 py-7 sm:space-y-10 sm:px-8 sm:py-9">
             {errorMessage ? (
               <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{errorMessage}</div>
             ) : null}
@@ -164,113 +137,71 @@ export default async function AcceptQuotePage({
               isKeener={isKeener}
               pickupCoordinate={pickupCoordinate}
               deliveryCoordinate={deliveryCoordinate}
+              transportType={quote.trailerType}
             />
 
-            <Card className={cn("border-0 shadow-xl ring-2", isKeener ? "bg-slate-50 ring-slate-200" : "bg-sky-50 ring-sky-200")}>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-2xl">Your transportation quote</CardTitle>
-                <CardDescription className="text-base">{quoteModel.pricingCardDescription}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                {showItemizedBreakdown && breakdownItems.length > 0 ? (
-                  <>
-                    <div className="space-y-2">
-                      {breakdownItems.map((fee) => (
-                        <PricingRow key={fee.id} label={fee.label} value={currency(fee.amount.toString())} />
-                      ))}
-                    </div>
-                    <PricingRow
-                      label="Transportation Service Total"
-                      value={currency(quote.customerTotal.toString())}
-                      emphasis
-                      accent={brandAccent}
-                    />
-                  </>
-                ) : (
-                  <PricingRow
-                    label="Vehicle Transportation Service"
-                    value={currency(quote.customerTotal.toString())}
-                    emphasis
-                    accent={brandAccent}
-                  />
-                )}
+            <PublicQuotePricingCard
+              customerTotal={quote.customerTotal}
+              depositDue={quote.depositDue}
+              balanceDue={quote.balanceDue}
+              showItemizedBreakdown={showItemizedBreakdown}
+              breakdownItems={breakdownItems}
+              description={quoteModel.pricingCardDescription}
+              isKeener={isKeener}
+            />
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <PricingRow label="Deposit Due Today" value={currency(quote.depositDue.toString())} />
-                  <PricingRow label="Balance Due on Delivery" value={currency(quote.balanceDue.toString())} />
+            <Card className="border-slate-200/80 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Truck className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle className="text-lg">Vehicle & shipment details</CardTitle>
                 </div>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  Deposit is due when accepting. Remaining balance is due on delivery unless otherwise noted.
-                </p>
+              </CardHeader>
+              <CardContent className="grid gap-3 sm:grid-cols-2">
+                {vehicleInfo ? <Detail label="Vehicle" value={vehicleInfo} /> : null}
+                <Detail label="Customer" value={quote.customerSnapshot.name} />
+                {quote.trailerType ? <Detail label="Transport type" value={quote.trailerType} /> : null}
+                {vehicle?.condition ? <Detail label="Running status" value={vehicle.condition} /> : null}
+                {pickupDateLabel ? <Detail label="Pickup date / window" value={pickupDateLabel} /> : null}
+                {vehicle?.type ? <Detail label="Vehicle type" value={vehicle.type} /> : null}
               </CardContent>
             </Card>
 
-            <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-              <Card className="border-0 shadow-md ring-1 ring-black/5">
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Truck className="h-5 w-5 text-muted-foreground" />
-                    <CardTitle className="text-xl">Vehicle & shipment details</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="grid gap-4 sm:grid-cols-2">
-                  {vehicleInfo ? <Detail label="Vehicle" value={vehicleInfo} /> : null}
-                  <Detail label="Customer" value={quote.customerSnapshot.name} />
-                  {quote.trailerType ? <Detail label="Transport type" value={quote.trailerType} /> : null}
-                  {vehicle?.condition ? <Detail label="Running status" value={vehicle.condition} /> : null}
-                  {pickupDateLabel ? <Detail label="Pickup date / window" value={pickupDateLabel} /> : null}
-                  {vehicle?.type ? <Detail label="Vehicle type" value={vehicle.type} /> : null}
-                </CardContent>
-              </Card>
-            </div>
-
             {quote.customerNotes ? (
-              <div className="rounded-2xl border bg-muted/20 p-5">
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-5">
                 <p className="font-semibold">Notes from {quote.company.name}</p>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{quote.customerNotes}</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{quote.customerNotes}</p>
               </div>
             ) : null}
 
-            <section className="rounded-2xl border bg-slate-50 p-6 sm:p-8">
-              <p className="text-lg font-semibold">What happens next</p>
-              <ol className="mt-5 space-y-4 text-sm leading-6 text-muted-foreground">
-                <li className="flex gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">1</span>
-                  <span>You accept the quote.</span>
-                </li>
-                <li className="flex gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">2</span>
-                  <span>Deposit is confirmed.</span>
-                </li>
-                <li className="flex gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">3</span>
-                  <span>Dispatch confirms carrier availability and pickup timing.</span>
-                </li>
-                <li className="flex gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">4</span>
-                  <span>Remaining balance is due on delivery unless otherwise noted.</span>
-                </li>
+            <section className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-5 sm:p-6">
+              <h2 className="text-lg font-semibold">What happens next</h2>
+              <ol className="mt-4 space-y-3 text-sm leading-relaxed text-muted-foreground">
+                <WhatNextStep step={1} text="You accept the quote." />
+                <WhatNextStep
+                  step={2}
+                  text={depositRequired ? "Deposit is confirmed." : "No deposit is required today."}
+                />
+                <WhatNextStep step={3} text="Dispatch confirms carrier availability and pickup timing." />
+                <WhatNextStep step={4} text="Remaining balance is due on delivery unless otherwise noted." />
               </ol>
             </section>
 
-            <section className="rounded-2xl border bg-white p-6 sm:p-8">
-              <p className="text-lg font-semibold">Quote terms & important details</p>
-              <ul className="mt-4 space-y-3 text-sm leading-6 text-muted-foreground">
-                {quoteTerms.map((term) => (
-                  <li key={term} className="flex gap-2">
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                    <span>{term}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <PublicQuoteImportantDetails
+              quoteMode={quote.quoteMode === "KEENER_LOGISTICS" || isKeener ? "KEENER_LOGISTICS" : quote.quoteMode}
+              companyName={quote.company.name}
+              hasExpiration={Boolean(quote.validUntil)}
+              depositDue={quote.depositDue}
+            />
 
             {!isAccepted && !isDeclined ? (
               <Card className="border-0 bg-slate-950 text-white shadow-xl">
-                <CardHeader>
+                <CardHeader className="pb-3">
                   <CardTitle className="text-2xl text-white">Accept this quote</CardTitle>
                   <CardDescription className="text-slate-300">
-                    Secure your transportation service by approving this quote today.
+                    {depositRequired
+                      ? "Secure your transportation service by approving this quote and confirming your deposit."
+                      : "Secure your transportation service by approving this quote today."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -304,7 +235,7 @@ export default async function AcceptQuotePage({
             ) : null}
 
             {!isAccepted && !isDeclined ? (
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <SecondaryAccordion title="Decline quote" description="Optional — tell us why this quote does not work for you.">
                   <form action={declineQuoteAction} className="space-y-4">
                     <input type="hidden" name="token" value={routeParams.token} />
@@ -342,7 +273,7 @@ export default async function AcceptQuotePage({
             ) : null}
 
             {contact ? (
-              <footer className="border-t pt-6 text-center text-sm text-muted-foreground">
+              <footer className="border-t border-slate-200 pt-6 text-center text-sm text-muted-foreground">
                 <p className="font-medium text-foreground">{quote.company.name}</p>
                 <p className="mt-2">
                   {contact.phone} · {contact.email} ·{" "}
@@ -356,6 +287,17 @@ export default async function AcceptQuotePage({
         </div>
       </div>
     </div>
+  );
+}
+
+function WhatNextStep({ step, text }: { step: number; text: string }) {
+  return (
+    <li className="flex gap-3">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
+        {step}
+      </span>
+      <span className="pt-0.5">{text}</span>
+    </li>
   );
 }
 
@@ -380,7 +322,7 @@ function InactiveQuotePage({
             name={quote.company.name}
             legalName={quote.company.legalName}
             logoUrl={companyHeaderLogoUrl(quote.company)}
-            variant="public"
+            variant="public-hero"
           />
           <h1 className="mt-6 text-3xl font-bold">{quote.quoteNumber}</h1>
         </div>
@@ -421,74 +363,26 @@ function SecondaryAccordion({
   children: ReactNode;
 }) {
   return (
-    <details className="group rounded-2xl border bg-white shadow-sm">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+    <details className="group rounded-xl border border-slate-200/80 bg-white shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5">
         <div>
           <p className="font-medium">{title}</p>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
         <ChevronDown className="h-5 w-5 text-muted-foreground transition group-open:rotate-180" />
       </summary>
-      <div className="border-t px-5 py-4">{children}</div>
+      <div className="border-t px-4 py-4">{children}</div>
     </details>
-  );
-}
-
-function ContactRow({
-  icon: Icon,
-  href,
-  label,
-  external,
-}: {
-  icon: typeof Phone;
-  href: string;
-  label: string;
-  external?: boolean;
-}) {
-  return (
-    <Link href={href} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined} className="flex items-center gap-2 hover:text-white">
-      <Icon className="h-4 w-4 shrink-0" />
-      <span>{label}</span>
-    </Link>
   );
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border bg-muted/10 p-4">
+    <div className="rounded-xl border border-slate-200/70 bg-slate-50/40 p-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-2 font-medium">{value}</p>
+      <p className="mt-1.5 font-medium">{value}</p>
     </div>
   );
-}
-
-function PricingRow({
-  label,
-  value,
-  emphasis,
-  accent,
-}: {
-  label: string;
-  value: string;
-  emphasis?: boolean;
-  accent?: string;
-}) {
-  return (
-    <div className="rounded-xl border bg-white/80 px-4 py-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={cn("mt-2 font-bold", emphasis ? cn("text-3xl tracking-tight", accent) : "text-2xl")}>{value}</p>
-    </div>
-  );
-}
-
-function StatusPill({ status, accepted, declined }: { status: string; accepted: boolean; declined: boolean }) {
-  const label = accepted ? "Accepted" : declined ? "Declined" : status.replaceAll("_", " ");
-  const styles = accepted
-    ? "bg-emerald-500/20 text-emerald-100"
-    : declined
-      ? "bg-red-500/20 text-red-100"
-      : "bg-white/15 text-white";
-  return <span className={cn("inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide", styles)}>{label}</span>;
 }
 
 function AlertBanner({

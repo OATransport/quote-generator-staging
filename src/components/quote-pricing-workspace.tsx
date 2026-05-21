@@ -2,9 +2,11 @@
 
 import type { QuoteFormPreview } from "@/lib/quote-form-preview";
 import { getQuoteModelConfig } from "@/lib/quote-model";
+import { DepositDueField } from "@/components/deposit-due-field";
 import { QuoteBreakdownSection } from "@/components/quote-breakdown-section";
 import { QuoteFieldBadge } from "@/components/quote-field-badge";
 import { QuotePricingFormula } from "@/components/quote-pricing-formula";
+import { hasDepositDue, publicDepositLabel } from "@/lib/public-quote-deposit";
 import { currency } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -69,22 +71,35 @@ export function QuotePricingWorkspace({
                   helper="Enter the total price quoted to the customer."
                   defaultValue={customerTotal}
                   large
+                  onInput={onPreviewRefresh}
                 />
               )}
-              <PricingField
-                id="depositDue"
-                name="depositDue"
-                label={model.depositLabel}
-                helper="Amount collected when the customer accepts the quote."
-                defaultValue={depositDue}
-                large
+              <DepositDueField
+                customerTotal={preview.customerTotal}
+                currentDeposit={preview.depositDue}
+                initialDeposit={depositDue}
+                depositLabel={model.depositLabel}
+                onPreviewRefresh={onPreviewRefresh}
               />
               <div className="rounded-xl border bg-muted/30 p-5">
                 <Label className="text-sm font-medium">{model.balanceDueLabel}</Label>
                 <p className="mt-3 text-3xl font-bold tracking-tight">{currency(preview.balanceDue)}</p>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">{model.balanceDueHelper}</p>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {hasDepositDue(preview.depositDue)
+                    ? model.balanceDueHelper
+                    : "When deposit is $0, the full service price is due on delivery."}
+                </p>
               </div>
             </div>
+
+            <p className="rounded-lg border border-dashed bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+              Public quote preview:{" "}
+              <span className="font-medium text-foreground">
+                {hasDepositDue(preview.depositDue)
+                  ? `${publicDepositLabel(preview.depositDue)} — ${currency(preview.depositDue)}`
+                  : "No Deposit Due Today — balance due on delivery"}
+              </span>
+            </p>
 
             <div className="space-y-2">
               <Label htmlFor="customerNotes">Customer notes</Label>
@@ -220,6 +235,7 @@ function PricingField({
   helper,
   defaultValue,
   large,
+  onInput,
 }: {
   id: string;
   name: string;
@@ -227,6 +243,7 @@ function PricingField({
   helper: string;
   defaultValue: number;
   large?: boolean;
+  onInput?: () => void;
 }) {
   return (
     <div className="rounded-xl border bg-background p-5 shadow-sm">
@@ -241,6 +258,7 @@ function PricingField({
         step="0.01"
         defaultValue={defaultValue.toString()}
         className={large ? "mt-3 text-2xl font-bold" : "mt-3 text-lg font-semibold"}
+        onInput={onInput}
       />
       <p className="mt-2 text-xs leading-5 text-muted-foreground">{helper}</p>
     </div>

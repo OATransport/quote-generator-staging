@@ -13,6 +13,7 @@ import {
   resolveGhlImportAccountKey,
 } from "@/lib/ghl-accounts";
 import { prisma } from "@/lib/prisma";
+import { applyRecommendedDepositIfUnset } from "@/lib/quote-pricing";
 import { appUrl } from "@/lib/utils";
 import {
   ensureImportMappings,
@@ -720,8 +721,11 @@ function buildQuoteData(payload: ImportPayload) {
   const ghlPipelineId = opportunity.pipelineId ?? credentials?.quotePipelineId;
   const ghlStageId = opportunity.pipelineStageId ?? opportunity.stageId ?? credentials?.defaultStageId;
   const customerTotal = asDecimal(mappedValue(payload, "customerTotal") ?? opportunity.monetaryValue);
-  const depositDue = asDecimal(mappedValue(payload, "depositDue"));
-  const balanceDue = asDecimal(mappedValue(payload, "balanceDue"), Number(customerTotal) - Number(depositDue));
+  const customerTotalNum = Number(customerTotal);
+  const rawDepositNum = Number(mappedValue(payload, "depositDue") ?? 0);
+  const resolvedDeposit = applyRecommendedDepositIfUnset(customerTotalNum, rawDepositNum);
+  const depositDue = asDecimal(resolvedDeposit);
+  const balanceDue = asDecimal(undefined, customerTotalNum - resolvedDeposit);
 
   const pickup = isKeener
     ? resolveKeenerCombinedLocation(mappedText(payload, "pickupAddress"))

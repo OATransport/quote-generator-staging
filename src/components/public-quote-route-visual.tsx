@@ -1,6 +1,6 @@
 import type { GeoCoordinate } from "@/lib/geo";
-import { UsaRouteMapVisual } from "@/components/usa-route-map-visual";
-import { PublicQuoteRouteCardVisual } from "@/components/public-quote-route-card-visual";
+import { formatApproxRouteDistance, haversineMiles } from "@/lib/geo";
+import { TransportRouteBoard } from "@/components/transport-route-board";
 import type { FormattedRouteLocation } from "@/lib/route-format";
 
 export function PublicQuoteRouteVisual({
@@ -10,6 +10,7 @@ export function PublicQuoteRouteVisual({
   isKeener,
   pickupCoordinate,
   deliveryCoordinate,
+  transportType,
 }: {
   pickup: FormattedRouteLocation;
   delivery: FormattedRouteLocation;
@@ -17,29 +18,21 @@ export function PublicQuoteRouteVisual({
   isKeener: boolean;
   pickupCoordinate?: GeoCoordinate | null;
   deliveryCoordinate?: GeoCoordinate | null;
+  transportType?: string | null;
 }) {
-  const pickupLabel = pickup.lines[0] ?? "Pickup";
-  const deliveryLabel = delivery.lines[0] ?? "Delivery";
-
-  if (pickupCoordinate && deliveryCoordinate) {
-    return (
-      <UsaRouteMapVisual
-        pickup={pickupCoordinate}
-        delivery={deliveryCoordinate}
-        routeSummary={routeSummary}
-        pickupLabel={pickupLabel}
-        deliveryLabel={deliveryLabel}
-        isKeener={isKeener}
-      />
-    );
-  }
+  const estimatedDistance =
+    pickupCoordinate && deliveryCoordinate
+      ? formatApproxRouteDistance(haversineMiles(pickupCoordinate, deliveryCoordinate))
+      : null;
 
   return (
-    <PublicQuoteRouteCardVisual
+    <TransportRouteBoard
       pickup={pickup}
       delivery={delivery}
       routeSummary={routeSummary}
       isKeener={isKeener}
+      transportType={transportType}
+      estimatedDistance={estimatedDistance}
     />
   );
 }
