@@ -134,6 +134,21 @@ export async function updateQuoteAction(formData: FormData) {
   revalidatePath(`/quotes/${quoteId}/edit`);
 }
 
+export async function archiveQuoteAction(formData: FormData) {
+  const quoteId = String(formData.get("quoteId") ?? "");
+  if (!quoteId) return;
+
+  await prisma.quote.update({
+    where: { id: quoteId },
+    data: { archivedAt: new Date() },
+  });
+
+  revalidatePath("/quotes");
+  revalidatePath("/");
+  revalidatePath(`/quotes/${quoteId}/edit`);
+  redirect("/quotes");
+}
+
 function parseFeeRows(formData: FormData) {
   const rowIds = formData.getAll("feeRowId").map(String);
   const enabled = new Set(formData.getAll("feeEnabled").map(String));

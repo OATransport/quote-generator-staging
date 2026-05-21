@@ -152,6 +152,7 @@ model Quote {
   declinedIp                  String?
   declinedUserAgent           String?     @db.Text
   lastCustomerActionAt        DateTime?
+  archivedAt                  DateTime?
   createdAt                   DateTime    @default(now())
   updatedAt                   DateTime    @updatedAt
 
@@ -171,6 +172,7 @@ model Quote {
   @@index([status])
   @@index([quoteMode])
   @@index([createdAt])
+  @@index([archivedAt])
 }
 
 model VehicleSnapshot {
