@@ -16,6 +16,34 @@ type PublicAcceptCheck = {
   hasQuoteTotal: boolean;
 };
 
+type MappingGuidancePageCheck = {
+  status: number;
+  loaded: boolean;
+  organizedAutoTransport: boolean;
+  keenerLogistics: boolean;
+  publicAcceptanceUrl: boolean;
+  critical: boolean;
+  quotePdfUrl: boolean;
+  optional: boolean;
+  pdfOptional: boolean;
+  noSecrets: boolean;
+  intakeMappings?: boolean;
+  ghlToApp?: boolean;
+  quoteResultMappings?: boolean;
+  appToGhl?: boolean;
+  liveLinkPrimary?: boolean;
+  syncSafetyText?: boolean;
+};
+
+type MappingGuidanceReport = {
+  fieldMappingPage: MappingGuidancePageCheck;
+  settingsPage: MappingGuidancePageCheck;
+  secretSafety: {
+    passed: boolean;
+    issues: string[];
+  };
+};
+
 type SmokeReport = {
   failures: string[];
   unauth?: Record<string, number>;
@@ -35,6 +63,7 @@ type SmokeReport = {
   };
   publicLinks?: Record<string, unknown>;
   sampleInActiveList?: boolean;
+  mappingGuidance?: MappingGuidanceReport;
   [key: string]: unknown;
 };
 
@@ -74,6 +103,139 @@ async function readStagingLiveLink(page: Page) {
     return previewValue;
   }
   return openHref ?? previewValue;
+}
+
+const SECRET_PATTERN_CHECKS = [
+  { label: "ghl-token-prefix", pattern: /pit-[A-Za-z0-9-]{20,}/i },
+  { label: "private-integration-token", pattern: /private\s*integration\s*token/i },
+  { label: "database-url-env", pattern: /DATABASE_URL\s*=/i },
+  { label: "postgres-url", pattern: /postgres(?:ql)?:\/\//i },
+  { label: "ghl-token-env", pattern: /GHL_[A-Z_]*TOKEN\s*=\s*\S+/i },
+  { label: "basic-auth-password-env", pattern: /BASIC_AUTH_PASSWORD\s*=\s*\S+/i },
+  { label: "bearer-token", pattern: /Bearer\s+[A-Za-z0-9._-]{20,}/ },
+  { label: "jwt-token", pattern: /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/ },
+] as const;
+
+function scanPageForSecrets(text: string, authPass: string, pageLabel: string): string[] {
+  const issues: string[] = [];
+  for (const { label, pattern } of SECRET_PATTERN_CHECKS) {
+    if (pattern.test(text)) issues.push(`${pageLabel}:${label}`);
+  }
+  if (authPass && text.includes(authPass)) {
+    issues.push(`${pageLabel}:basic-auth-password-value`);
+  }
+  return issues;
+}
+
+function pageHas(text: string, pattern: RegExp) {
+  return pattern.test(text);
+}
+
+async function verifyMappingGuidance(page: Page, authPass: string): Promise<MappingGuidanceReport> {
+  const mappingRes = await page.goto(`${STAGING}/dashboard/settings/ghl-field-mapping`, {
+    waitUntil: "networkidle",
+    timeout: 60000,
+  });
+  const mappingText = await page.locator("body").innerText();
+  const mappingSecretIssues = scanPageForSecrets(mappingText, authPass, "field-mapping");
+
+  const fieldMappingPage: MappingGuidancePageCheck = {
+    status: mappingRes?.status() ?? 0,
+    loaded: mappingRes?.status() === 200,
+    organizedAutoTransport: pageHas(mappingText, /Organized Auto Transport/i),
+    keenerLogistics: pageHas(mappingText, /Keener Logistics/i),
+    intakeMappings: pageHas(mappingText, /Intake mappings/i),
+    ghlToApp: pageHas(mappingText, /GHL → App/i),
+    quoteResultMappings: pageHas(mappingText, /Quote-result mappings/i),
+    appToGhl: pageHas(mappingText, /App → GHL/i),
+    publicAcceptanceUrl: pageHas(mappingText, /Public Acceptance URL/i),
+    critical: pageHas(mappingText, /Critical/i),
+    liveLinkPrimary: pageHas(mappingText, /Live-link primary/i),
+    quotePdfUrl: pageHas(mappingText, /Quote PDF URL/i),
+    optional: pageHas(mappingText, /Optional/i),
+    pdfOptional: pageHas(mappingText, /PDF optional/i),
+    syncSafetyText:
+      pageHas(mappingText, /Disabled \(safe\)/i) ||
+      pageHas(mappingText, /manual sync currently validates/i) ||
+      pageHas(mappingText, /SKIPPED/i),
+    noSecrets: mappingSecretIssues.length === 0,
+  };
+
+  const settingsRes = await page.goto(`${STAGING}/settings/ghl`, {
+    waitUntil: "networkidle",
+    timeout: 60000,
+  });
+  const settingsText = await page.locator("body").innerText();
+  const settingsSecretIssues = scanPageForSecrets(settingsText, authPass, "settings-ghl");
+
+  const settingsPage: MappingGuidancePageCheck = {
+    status: settingsRes?.status() ?? 0,
+    loaded: settingsRes?.status() === 200,
+    organizedAutoTransport: pageHas(settingsText, /Organized Auto Transport/i),
+    keenerLogistics: pageHas(settingsText, /Keener Logistics/i),
+    publicAcceptanceUrl: pageHas(settingsText, /Public Acceptance URL/i),
+    critical: pageHas(settingsText, /Critical/i),
+    quotePdfUrl: pageHas(settingsText, /Quote PDF URL/i),
+    optional: pageHas(settingsText, /Optional/i),
+    pdfOptional: pageHas(settingsText, /PDF optional/i),
+    noSecrets: settingsSecretIssues.length === 0,
+  };
+
+  const allSecretIssues = [...mappingSecretIssues, ...settingsSecretIssues];
+
+  return {
+    fieldMappingPage,
+    settingsPage,
+    secretSafety: {
+      passed: allSecretIssues.length === 0,
+      issues: allSecretIssues,
+    },
+  };
+}
+
+function assertMappingGuidance(report: MappingGuidanceReport, fail: (msg: string) => void) {
+  const { fieldMappingPage: mapping, settingsPage: settings } = report;
+
+  if (!mapping.loaded) fail(`Mapping page expected 200, got ${mapping.status}`);
+  if (!settings.loaded) fail(`Settings GHL page expected 200, got ${settings.status}`);
+
+  const mappingChecks: Array<[string, boolean | undefined]> = [
+    ["organizedAutoTransport", mapping.organizedAutoTransport],
+    ["keenerLogistics", mapping.keenerLogistics],
+    ["intakeMappings", mapping.intakeMappings],
+    ["ghlToApp", mapping.ghlToApp],
+    ["quoteResultMappings", mapping.quoteResultMappings],
+    ["appToGhl", mapping.appToGhl],
+    ["publicAcceptanceUrl", mapping.publicAcceptanceUrl],
+    ["critical", mapping.critical],
+    ["liveLinkPrimary", mapping.liveLinkPrimary],
+    ["quotePdfUrl", mapping.quotePdfUrl],
+    ["optional", mapping.optional],
+    ["pdfOptional", mapping.pdfOptional],
+    ["syncSafetyText", mapping.syncSafetyText],
+    ["noSecrets", mapping.noSecrets],
+  ];
+  for (const [key, ok] of mappingChecks) {
+    if (!ok) fail(`Mapping guidance field-mapping missing: ${key}`);
+  }
+
+  const settingsChecks: Array<[string, boolean]> = [
+    ["organizedAutoTransport", settings.organizedAutoTransport],
+    ["keenerLogistics", settings.keenerLogistics],
+    ["publicAcceptanceUrl", settings.publicAcceptanceUrl],
+    ["critical", settings.critical],
+    ["quotePdfUrl", settings.quotePdfUrl],
+    ["optional", settings.optional],
+    ["pdfOptional", settings.pdfOptional],
+    ["noSecrets", settings.noSecrets],
+  ];
+  for (const [key, ok] of settingsChecks) {
+    if (!ok) fail(`Mapping guidance settings-ghl missing: ${key}`);
+  }
+
+  if (!report.secretSafety.passed) {
+    fail(`Mapping guidance secret safety failed (${report.secretSafety.issues.length} issue(s))`);
+  }
 }
 
 async function main() {
@@ -330,6 +492,9 @@ async function main() {
   report.publicLinks = publicLinks;
 
   report.sampleInActiveList = sampleInActive;
+
+  report.mappingGuidance = await verifyMappingGuidance(page, pass);
+  assertMappingGuidance(report.mappingGuidance, fail);
 
   await browser.close();
   await prisma.$disconnect();
