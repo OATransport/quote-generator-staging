@@ -13,6 +13,7 @@ import { allMappingFields } from "@/lib/ghl-field-mapping-config";
 import { prisma } from "@/lib/prisma";
 import { generateQuotePdf } from "@/lib/pdf";
 import { calculateFeeTotals } from "@/lib/quote-fees";
+import { parseMoney, parseQuoteMode, parseQuoteStatus, toDecimal } from "@/lib/form-parsing";
 import { getRequestMeta } from "@/lib/request-meta";
 import { appUrl } from "@/lib/utils";
 import {
@@ -97,41 +98,68 @@ export async function createQuoteAction(formData: FormData) {
 }
 
 export async function updateQuoteAction(formData: FormData) {
-  const quoteId = String(formData.get("quoteId") ?? "");
-  const depositDue = Number(formData.get("depositDue") ?? 0);
-  const feeRows = parseFeeRows(formData);
-  const totals = calculateFeeTotals(feeRows);
+  const quoteId = String(formData.get("quoteId") ?? "").trim();
+  if (!quoteId) {
+    redirect("/quotes?saveError=missing-quote");
+  }
 
-  await prisma.$transaction([
-    prisma.quoteFee.deleteMany({ where: { quoteId } }),
-    prisma.quote.update({
-      where: { id: quoteId },
-      data: {
-        quoteMode: String(formData.get("quoteMode") ?? "OAT_DIRECT") as QuoteMode,
-        status: String(formData.get("status") ?? "READY_TO_SEND") as QuoteStatus,
-        pickupAddress: String(formData.get("pickupAddress") ?? ""),
-        pickupCity: String(formData.get("pickupCity") ?? ""),
-        pickupState: String(formData.get("pickupState") ?? ""),
-        pickupZip: String(formData.get("pickupZip") ?? ""),
-        deliveryAddress: String(formData.get("deliveryAddress") ?? ""),
-        deliveryCity: String(formData.get("deliveryCity") ?? ""),
-        deliveryState: String(formData.get("deliveryState") ?? ""),
-        deliveryZip: String(formData.get("deliveryZip") ?? ""),
-        trailerType: String(formData.get("trailerType") ?? ""),
-        customerTotal: totals.customerTotal,
-        depositDue,
-        balanceDue: Math.max(0, totals.customerTotal - depositDue),
-        internalEstimatedCarrierPay: totals.carrierPay || null,
-        internalGrossMargin: totals.grossMargin,
-        internalMarginPercentage: totals.marginPercentage,
-        customerNotes: String(formData.get("customerNotes") ?? ""),
-        internalNotes: String(formData.get("internalNotes") ?? ""),
-        fees: { create: feeRows },
-      },
-    }),
-  ]);
+  try {
+    const existing = await prisma.quote.findUnique({ where: { id: quoteId }, select: { status: true, quoteMode: true } });
+    if (!existing) {
+      redirect("/quotes?saveError=quote-not-found");
+    }
 
-  revalidatePath(`/quotes/${quoteId}/edit`);
+    const depositDue = parseMoney(formData.get("depositDue"));
+    const feeRows = parseFeeRows(formData);
+    const totals = calculateFeeTotals(feeRows);
+    const customerTotal = parseMoney(String(totals.customerTotal));
+    const carrierPay = parseMoney(String(totals.carrierPay));
+    const grossMargin = parseMoney(String(totals.grossMargin));
+    const marginPercentage =
+      totals.marginPercentage == null || !Number.isFinite(totals.marginPercentage) ? null : totals.marginPercentage;
+
+    await prisma.$transaction([
+      prisma.quoteFee.deleteMany({ where: { quoteId } }),
+      prisma.quote.update({
+        where: { id: quoteId },
+        data: {
+          quoteMode: parseQuoteMode(formData.get("quoteMode"), existing.quoteMode),
+          status: parseQuoteStatus(formData.get("status"), existing.status),
+          pickupAddress: String(formData.get("pickupAddress") ?? "") || null,
+          pickupCity: String(formData.get("pickupCity") ?? "") || null,
+          pickupState: String(formData.get("pickupState") ?? "") || null,
+          pickupZip: String(formData.get("pickupZip") ?? "") || null,
+          deliveryAddress: String(formData.get("deliveryAddress") ?? "") || null,
+          deliveryCity: String(formData.get("deliveryCity") ?? "") || null,
+          deliveryState: String(formData.get("deliveryState") ?? "") || null,
+          deliveryZip: String(formData.get("deliveryZip") ?? "") || null,
+          trailerType: String(formData.get("trailerType") ?? "") || null,
+          customerTotal: toDecimal(customerTotal) ?? 0,
+          depositDue: toDecimal(depositDue) ?? 0,
+          balanceDue: toDecimal(Math.max(0, customerTotal - depositDue)) ?? 0,
+          internalEstimatedCarrierPay: carrierPay > 0 ? toDecimal(carrierPay) : null,
+          internalGrossMargin: toDecimal(grossMargin),
+          internalMarginPercentage: toDecimal(marginPercentage),
+          customerNotes: String(formData.get("customerNotes") ?? "") || null,
+          internalNotes: String(formData.get("internalNotes") ?? "") || null,
+          fees: { create: feeRows },
+        },
+      }),
+    ]);
+
+    revalidatePath(`/quotes/${quoteId}/edit`);
+    revalidatePath("/quotes");
+    redirect(`/quotes/${quoteId}/edit?saved=1`);
+  } catch (error) {
+    if (error instanceof Error && error.message === "NEXT_REDIRECT") {
+      throw error;
+    }
+    console.error("[updateQuote] save failed", {
+      quoteId,
+      error: error instanceof Error ? error.message : "unknown error",
+    });
+    redirect(`/quotes/${quoteId}/edit?saveError=save-failed`);
+  }
 }
 
 export async function archiveQuoteAction(formData: FormData) {
@@ -162,12 +190,12 @@ function parseFeeRows(formData: FormData) {
       return {
         feeType,
         label: label || "Custom Fee",
-        amount: Number(formData.get(`feeAmount_${rowId}`) ?? 0),
+        amount: parseMoney(formData.get(`feeAmount_${rowId}`)),
         isEnabled: enabled.has(rowId),
         showOnPdf: showOnPdf.has(rowId),
         isInternalOnly: internalOnly.has(rowId),
         internalNote: String(formData.get(`feeInternalNote_${rowId}`) ?? "") || null,
-        sortOrder: Number(formData.get(`feeSortOrder_${rowId}`) ?? 0),
+        sortOrder: Number(formData.get(`feeSortOrder_${rowId}`) ?? 0) || 0,
       };
     })
     .filter((row) => row.label || row.amount !== 0);

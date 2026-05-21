@@ -12,6 +12,7 @@ import {
 import { QuoteLivePreview, QuoteProfitSummary } from "@/components/quote-live-preview";
 import { QuoteFieldBadge } from "@/components/quote-field-badge";
 import { buildPreviewFromFormElement, type QuoteFeeRowData, type QuoteFormPreview } from "@/lib/quote-form-preview";
+import { quoteStatusOptions } from "@/lib/form-parsing";
 import { currency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -172,14 +173,11 @@ export function QuoteEditForm({
                     defaultValue={status}
                     className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                   >
-                    <option value="IMPORTED_FROM_GHL">Imported from GHL</option>
-                    <option value="READY_TO_SEND">Ready to send</option>
-                    <option value="SENT">Sent</option>
-                    <option value="VIEWED">Viewed</option>
-                    <option value="QUESTION">Question</option>
-                    <option value="ACCEPTED">Accepted</option>
-                    <option value="DECLINED">Declined</option>
-                    <option value="CANCELLED">Cancelled</option>
+                    {quoteStatusOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option.replaceAll("_", " ")}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -240,11 +238,11 @@ export function QuoteEditForm({
         <Card className="border-sky-200/50">
           <CardHeader>
             <div className="flex flex-wrap items-center gap-2">
-              <CardTitle>A. Customer pricing</CardTitle>
+              <CardTitle>1. Customer quote</CardTitle>
               <QuoteFieldBadge variant="customer-visible" />
             </div>
             <CardDescription>
-              Controls what the customer sees on the live quote link. Marking a fee internal-only moves it to section B immediately.
+              What the customer sees and pays on the live quote link — total, deposit, balance, and customer-visible line items.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -278,18 +276,33 @@ export function QuoteEditForm({
           </CardContent>
         </Card>
 
-        <Card className="border-amber-200/60 bg-amber-50/10">
+        <Card className="border-indigo-200/60 bg-indigo-50/10">
           <CardHeader>
             <div className="flex flex-wrap items-center gap-2">
-              <CardTitle>B. Internal costs</CardTitle>
-              <QuoteFieldBadge variant="internal-only" />
+              <CardTitle>2. Carrier / driver pay</CardTitle>
+              <QuoteFieldBadge variant="carrier-facing" />
             </div>
             <CardDescription>
-              Carrier pay and internal-only costs. Never exposed on public quote pages.
+              What you may offer or pay the carrier. Not shown on the public customer quote page today. A separate carrier-facing view may come later.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <QuoteFeeInternalSection />
+            <QuoteFeeInternalSection section="carrier" />
+          </CardContent>
+        </Card>
+
+        <Card className="border-amber-200/60 bg-amber-50/10">
+          <CardHeader>
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle>3. Internal profit view</CardTitle>
+              <QuoteFieldBadge variant="internal-only" />
+            </div>
+            <CardDescription>
+              Broker margin, internal-only costs, and dispatch notes. Never exposed on public customer quote pages.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <QuoteFeeInternalSection section="internal" />
             <div className="space-y-2 border-t border-amber-200/60 pt-4">
               <Label htmlFor="internalNotes">Internal notes</Label>
               <p className="text-xs text-muted-foreground">Dispatch-only — never shown to customers.</p>
@@ -300,8 +313,10 @@ export function QuoteEditForm({
 
         <Card className="border-primary/20 bg-primary/5">
           <CardHeader>
-            <CardTitle>C. Profit summary</CardTitle>
-            <CardDescription>Live computed totals from enabled customer pricing and carrier pay.</CardDescription>
+            <CardTitle>Profit calculator</CardTitle>
+            <CardDescription>
+              Gross profit = customer total − carrier pay. Margin % = gross profit ÷ customer total.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <QuoteProfitSummary preview={preview} />

@@ -194,21 +194,30 @@ export function QuoteFeeCustomerSection() {
   );
 }
 
-export function QuoteFeeInternalSection() {
+export function QuoteFeeInternalSection({ section }: { section: "carrier" | "internal" }) {
   const { internalFees, addCustomFee } = useFeeEditor();
+  const visibleFees =
+    section === "carrier"
+      ? internalFees.filter((fee) => fee.feeType === "CARRIER_PAY")
+      : internalFees.filter((fee) => fee.feeType !== "CARRIER_PAY");
 
   return (
     <div className="space-y-3">
-      {internalFees.map((fee, index) =>
+      {section === "carrier" && visibleFees.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No carrier pay entered yet. Enable Carrier Pay or add a custom carrier cost.</p>
+      ) : null}
+      {visibleFees.map((fee, index) =>
         fee.isNew ? (
           <CustomFeeRow key={fee.rowId} fee={fee} index={index} section="internal" />
         ) : (
           <QuoteFeeRow key={fee.rowId} fee={fee} index={index} section="internal" />
         ),
       )}
-      <Button type="button" variant="outline" size="sm" onClick={() => addCustomFee("internal")}>
-        <Plus className="h-4 w-4" /> Add custom internal cost
-      </Button>
+      {section === "internal" ? (
+        <Button type="button" variant="outline" size="sm" onClick={() => addCustomFee("internal")}>
+          <Plus className="h-4 w-4" /> Add custom internal cost
+        </Button>
+      ) : null}
     </div>
   );
 }

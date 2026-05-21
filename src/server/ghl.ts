@@ -2,7 +2,12 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 import { Prisma, QuoteStatus, type GhlFieldMapping } from "@prisma/client";
+import { parseMakeModel, resolveImportLocationFields, resolveKeenerCombinedLocation } from "@/lib/address-parse";
 import { quoteResultFields } from "@/lib/ghl-field-mapping-config";
+import {
+  knownGhlFieldRefForLocation,
+  stripContactPrefix,
+} from "@/lib/ghl-known-field-ids";
 import {
   ghlLocationIdForAccountKey,
   resolveGhlImportAccountKey,
@@ -10,9 +15,11 @@ import {
 import { prisma } from "@/lib/prisma";
 import { appUrl } from "@/lib/utils";
 import {
+  ensureImportMappings,
   getGhlFieldMappingsForLocation,
   ghlFieldMappingWhere,
   getActiveGhlLocationId,
+  KEENER_GHL_LOCATION_ID,
   mockCompanyToGhlLocationId,
   resolveCompanyAndQuoteModeForGhlLocation,
   resolveOpportunityGhlLocationId,
@@ -59,6 +66,7 @@ type GhlCustomField = {
   name?: string;
   fieldKey?: string;
   field_value?: unknown;
+  fieldValue?: unknown;
   value?: unknown;
 };
 
@@ -176,29 +184,111 @@ function getPath(source: unknown, path?: string | null): unknown {
   }, source);
 }
 
-function customFieldValue(fields: GhlCustomField[] | undefined, mapping: GhlFieldMapping) {
-  const match = fields?.find((field) => {
+function readCustomFieldEntryValue(field: GhlCustomField) {
+  return field.field_value ?? field.fieldValue ?? field.value;
+}
+
+function normalizeCustomFieldEntries(fields: unknown): GhlCustomField[] {
+  if (!fields) return [];
+  if (Array.isArray(fields)) return fields as GhlCustomField[];
+  if (typeof fields === "object") {
+    return Object.entries(fields as Record<string, unknown>).map(([id, value]) => ({
+      id,
+      field_value: value,
+      value,
+    }));
+  }
+  return [];
+}
+
+function customFieldValue(fields: unknown, mapping: GhlFieldMapping) {
+  const normalized = normalizeCustomFieldEntries(fields);
+  const fieldKeyCandidates = new Set(
+    [mapping.ghlCustomFieldName, mapping.fallbackPath, stripContactPrefix(mapping.fallbackPath ?? "")]
+      .filter(Boolean)
+      .flatMap((value) => [value, stripContactPrefix(value!)]),
+  );
+
+  const match = normalized.find((field) => {
+    const keys = [field.fieldKey, field.key, field.name].filter(Boolean);
     return (
       (mapping.ghlCustomFieldId && field.id === mapping.ghlCustomFieldId) ||
-      (mapping.ghlCustomFieldName && field.name === mapping.ghlCustomFieldName) ||
-      (mapping.ghlCustomFieldName && field.key === mapping.ghlCustomFieldName) ||
-      (mapping.ghlCustomFieldName && field.fieldKey === mapping.ghlCustomFieldName)
+      (mapping.ghlCustomFieldName && keys.some((key) => key === mapping.ghlCustomFieldName)) ||
+      keys.some((key) => fieldKeyCandidates.has(key ?? ""))
     );
   });
 
-  return match?.field_value ?? match?.value;
+  if (match) return readCustomFieldEntryValue(match);
+
+  if (mapping.ghlCustomFieldId && fields && typeof fields === "object" && !Array.isArray(fields)) {
+    const direct = (fields as Record<string, unknown>)[mapping.ghlCustomFieldId];
+    if (direct != null) return direct;
+  }
+
+  if (fields && typeof fields === "object" && !Array.isArray(fields)) {
+    const objectFields = fields as Record<string, unknown>;
+    for (const candidate of fieldKeyCandidates) {
+      if (candidate && objectFields[candidate] != null) return objectFields[candidate];
+    }
+  }
+
+  return undefined;
+}
+
+function readValueByFieldKey(payload: ImportPayload, fieldKey: string): unknown {
+  const normalizedKey = stripContactPrefix(fieldKey);
+  const candidates = new Set([fieldKey, normalizedKey]);
+
+  for (const fields of [payload.contact?.customFields, payload.opportunity.customFields]) {
+    const normalized = normalizeCustomFieldEntries(fields);
+    const match = normalized.find((field) => {
+      const keys = [field.fieldKey, field.key, field.name, field.id].filter(Boolean);
+      return keys.some((key) => candidates.has(key ?? ""));
+    });
+    if (match) return readCustomFieldEntryValue(match);
+
+    if (fields && typeof fields === "object" && !Array.isArray(fields)) {
+      const objectFields = fields as Record<string, unknown>;
+      for (const candidate of candidates) {
+        if (objectFields[candidate] != null) return objectFields[candidate];
+      }
+    }
+  }
+
+  if (payload.contact) {
+    const fromContact = getPath(payload.contact, normalizedKey);
+    if (fromContact != null) return fromContact;
+    const fromNested = getPath(payload.contact, `customFields.${normalizedKey}`);
+    if (fromNested != null) return fromNested;
+  }
+
+  const fromOpportunity = getPath(payload.opportunity, normalizedKey);
+  if (fromOpportunity != null) return fromOpportunity;
+
+  return undefined;
 }
 
 function mappedValue(payload: ImportPayload, appFieldKey: string) {
+  const ghlLocationId = resolveOpportunityGhlLocationId(payload.opportunity);
   const mapping = payload.mappings.find((item) => item.appFieldKey === appFieldKey);
-  if (!mapping) return undefined;
+  const known = knownGhlFieldRefForLocation(ghlLocationId, appFieldKey);
 
-  return (
-    customFieldValue(payload.opportunity.customFields, mapping) ??
-    customFieldValue(payload.contact?.customFields, mapping) ??
-    getPath(payload.opportunity, mapping.fallbackPath) ??
-    getPath(payload.contact, mapping.fallbackPath)
-  );
+  if (mapping) {
+    const fromMapping =
+      customFieldValue(payload.opportunity.customFields, mapping) ??
+      customFieldValue(payload.contact?.customFields, mapping) ??
+      (mapping.fallbackPath ? readValueByFieldKey(payload, mapping.fallbackPath) : undefined) ??
+      getPath(payload.opportunity, mapping.fallbackPath) ??
+      getPath(payload.contact, mapping.fallbackPath);
+    if (fromMapping != null && fromMapping !== "") return fromMapping;
+  }
+
+  if (known?.ghlFieldKey) {
+    const fromKnown = readValueByFieldKey(payload, known.ghlFieldKey);
+    if (fromKnown != null && fromKnown !== "") return fromKnown;
+  }
+
+  return undefined;
 }
 
 function mappedText(payload: ImportPayload, appFieldKey: string) {
@@ -588,7 +678,7 @@ async function getImportPayload(opportunityId: string, ghlLocationIdHint?: strin
     const mock = getMockGhlOpportunity(opportunityId);
     if (!mock) throw new Error(`Mock opportunity not found: ${opportunityId}`);
     const ghlLocationId = mockCompanyToGhlLocationId(mock.companyId);
-    const mappings = await getGhlFieldMappingsForLocation(ghlLocationId);
+    const mappings = ensureImportMappings(await getGhlFieldMappingsForLocation(ghlLocationId), ghlLocationId);
     return {
       opportunity: mock.opportunity,
       contact: mock.opportunity.contact,
@@ -600,10 +690,11 @@ async function getImportPayload(opportunityId: string, ghlLocationIdHint?: strin
   const opportunity = await getGhlOpportunity(opportunityId, initialLocationId);
   const ghlLocationId = resolveOpportunityGhlLocationId(opportunity);
   const contactId = opportunity.contactId ?? opportunity.contact?.id;
-  const [contact, mappings] = await Promise.all([
+  const [contact, dbMappings] = await Promise.all([
     contactId ? getGhlContact(contactId, ghlLocationId) : Promise.resolve(opportunity.contact),
     getGhlFieldMappingsForLocation(ghlLocationId),
   ]);
+  const mappings = ensureImportMappings(dbMappings, ghlLocationId);
   return { opportunity, contact, mappings };
 }
 
@@ -623,6 +714,7 @@ function buildQuoteData(payload: ImportPayload) {
   const opportunity = payload.opportunity;
   const contact = payload.contact;
   const ghlLocationId = resolveOpportunityGhlLocationId(opportunity);
+  const isKeener = ghlLocationId === KEENER_GHL_LOCATION_ID;
   const credentials = isMockGhlMode() ? null : getGhlCredentialsForLocation(ghlLocationId);
   const ghlContactId = opportunity.contactId ?? contact?.id;
   const ghlPipelineId = opportunity.pipelineId ?? credentials?.quotePipelineId;
@@ -630,6 +722,27 @@ function buildQuoteData(payload: ImportPayload) {
   const customerTotal = asDecimal(mappedValue(payload, "customerTotal") ?? opportunity.monetaryValue);
   const depositDue = asDecimal(mappedValue(payload, "depositDue"));
   const balanceDue = asDecimal(mappedValue(payload, "balanceDue"), Number(customerTotal) - Number(depositDue));
+
+  const pickup = isKeener
+    ? resolveKeenerCombinedLocation(mappedText(payload, "pickupAddress"))
+    : resolveImportLocationFields({
+        address: mappedText(payload, "pickupAddress"),
+        city: mappedText(payload, "pickupCity"),
+        state: mappedText(payload, "pickupState"),
+        zip: mappedText(payload, "pickupZip"),
+      });
+  const delivery = isKeener
+    ? resolveKeenerCombinedLocation(mappedText(payload, "deliveryAddress"))
+    : resolveImportLocationFields({
+        address: mappedText(payload, "deliveryAddress"),
+        city: mappedText(payload, "deliveryCity"),
+        state: mappedText(payload, "deliveryState"),
+        zip: mappedText(payload, "deliveryZip"),
+      });
+
+  const vehicleMakeText = mappedText(payload, "vehicleMake");
+  const vehicleModelText = mappedText(payload, "vehicleModel");
+  const parsedMakeModel = parseMakeModel(vehicleMakeText ?? vehicleModelText);
 
   return {
     ghlContactId,
@@ -646,17 +759,17 @@ function buildQuoteData(payload: ImportPayload) {
       rawGhlData: jsonValue({ contact, opportunity }),
     },
     quote: {
-      pickupAddress: mappedText(payload, "pickupAddress"),
-      pickupCity: mappedText(payload, "pickupCity"),
-      pickupState: mappedText(payload, "pickupState"),
-      pickupZip: mappedText(payload, "pickupZip"),
+      pickupAddress: pickup.address ?? null,
+      pickupCity: pickup.city ?? null,
+      pickupState: pickup.state ?? null,
+      pickupZip: pickup.zip ?? null,
       pickupContactName: mappedText(payload, "pickupContactName"),
       pickupContactPhone: mappedText(payload, "pickupContactPhone"),
       pickupDate: asDate(mappedValue(payload, "pickupDate")),
-      deliveryAddress: mappedText(payload, "deliveryAddress"),
-      deliveryCity: mappedText(payload, "deliveryCity"),
-      deliveryState: mappedText(payload, "deliveryState"),
-      deliveryZip: mappedText(payload, "deliveryZip"),
+      deliveryAddress: delivery.address ?? null,
+      deliveryCity: delivery.city ?? null,
+      deliveryState: delivery.state ?? null,
+      deliveryZip: delivery.zip ?? null,
       deliveryContactName: mappedText(payload, "deliveryContactName"),
       deliveryContactPhone: mappedText(payload, "deliveryContactPhone"),
       deliveryWindow: mappedText(payload, "deliveryWindow"),
@@ -670,8 +783,8 @@ function buildQuoteData(payload: ImportPayload) {
     },
     vehicle: {
       year: mappedText(payload, "vehicleYear"),
-      make: mappedText(payload, "vehicleMake"),
-      model: mappedText(payload, "vehicleModel"),
+      make: vehicleMakeText ?? parsedMakeModel.make ?? null,
+      model: vehicleModelText ?? parsedMakeModel.model ?? null,
       type: mappedText(payload, "vehicleType"),
       condition: mappedText(payload, "vehicleCondition"),
       vin: mappedText(payload, "vehicleVin"),

@@ -34,7 +34,7 @@ export default async function EditQuotePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ syncStatus?: string; syncMessage?: string }>;
+  searchParams: Promise<{ syncStatus?: string; syncMessage?: string; saved?: string; saveError?: string }>;
 }) {
   const routeParams = await params;
   const query = await searchParams;
@@ -92,9 +92,33 @@ export default async function EditQuotePage({
     syncFeedbackStatus: query.syncStatus ?? null,
   };
 
+  const saveErrorMessage =
+    query.saveError === "save-failed"
+      ? "Could not save this quote. Check pricing values and try again."
+      : query.saveError
+        ? "Could not save this quote."
+        : null;
+  const saveSuccess = query.saved === "1";
+
   return (
     <QuoteEditWorkspace initialPreview={initialPreview}>
       <div className="min-h-screen bg-muted/30">
+        {(saveSuccess || saveErrorMessage) && (
+          <div className="border-b bg-background px-6 py-3 lg:px-8">
+            <div className="mx-auto max-w-[1400px]">
+              {saveSuccess ? (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                  Quote saved successfully.
+                </div>
+              ) : null}
+              {saveErrorMessage ? (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {saveErrorMessage}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )}
         <div className="border-b bg-background">
           <div className="mx-auto max-w-[1400px] space-y-5 px-6 py-6 lg:px-8">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">

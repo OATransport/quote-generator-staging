@@ -8,12 +8,11 @@ import {
   GhlMappingSafetyPanel,
   GhlMappingSectionIntro,
 } from "@/components/ghl-mapping/ghl-mapping-guidance";
-import {
-  GhlMappingSummaryTable,
-  mappedFieldIds,
-  mappingsByLocationFromRecords,
-} from "@/components/ghl-mapping/ghl-mapping-summary-table";
+import { GhlMappingOverview } from "@/components/ghl-mapping/ghl-mapping-overview";
+import { mappedFieldIds, mappingsByLocationFromRecords } from "@/components/ghl-mapping/ghl-mapping-summary-table";
 import { GhlUnmappedFieldsPanel } from "@/components/ghl-mapping/ghl-unmapped-fields";
+import { isMappingEffectivelyMapped } from "@/lib/ghl-mapping-display";
+import type { GhlFieldMapping } from "@prisma/client";
 import { labelForGhlImportAccountKey, accountKeyForGhlLocationId } from "@/lib/ghl-accounts";
 import {
   leadImportFieldMeta,
@@ -63,9 +62,11 @@ export default async function GhlFieldMappingPage({
     fetchError = error instanceof Error ? error.message : "Unable to fetch GoHighLevel custom fields.";
   }
 
-  const missingCriticalFields = [...leadImportFieldMeta, ...quoteResultFieldMeta].filter(
-    (field) => field.indicators.includes("critical") && !activeMappings.get(field.key)?.ghlCustomFieldId,
-  );
+  const missingCriticalFields = [...leadImportFieldMeta, ...quoteResultFieldMeta].filter((field) => {
+    if (!field.indicators.includes("critical") || !activeLocationId) return false;
+    const mapping = activeMappings.get(field.key);
+    return !isMappingEffectivelyMapped(field, mapping as GhlFieldMapping | undefined, activeLocationId);
+  });
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
@@ -125,22 +126,13 @@ export default async function GhlFieldMappingPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Current mappings overview</CardTitle>
+          <CardTitle>Mapping overview</CardTitle>
           <CardDescription>
-            Read-only snapshot for both accounts. Editable controls below apply only to the active environment location.
+            Filter by what matters. Full editable controls below apply only to the active environment location.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-8">
-          <GhlMappingSummaryTable
-            title="Intake mappings"
-            fields={leadImportFieldMeta}
-            mappingsByLocation={mappingsByLocation}
-          />
-          <GhlMappingSummaryTable
-            title="Quote-result mappings"
-            fields={quoteResultFieldMeta}
-            mappingsByLocation={mappingsByLocation}
-          />
+        <CardContent>
+          <GhlMappingOverview mappingsByLocation={mappingsByLocation} />
         </CardContent>
       </Card>
 

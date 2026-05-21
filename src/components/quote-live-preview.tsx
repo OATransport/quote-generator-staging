@@ -77,10 +77,10 @@ export function QuoteLivePreview({
       <Card className="border-amber-200/80 bg-amber-50/20 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-base">Internal dispatch view</CardTitle>
+            <CardTitle className="text-base">Internal profit preview</CardTitle>
             <QuoteFieldBadge variant="internal-only" />
           </div>
-          <CardDescription>Live margin preview — never shown on public quote pages.</CardDescription>
+          <CardDescription>Carrier pay and margin — never shown on public customer quote pages.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="grid grid-cols-2 gap-3">
@@ -129,24 +129,32 @@ export function QuoteLivePreview({
 }
 
 export function QuoteProfitSummary({ preview }: { preview: QuoteFormPreview }) {
+  const missingCarrierPay = preview.carrierPay <= 0;
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <ProfitMetric label="Customer total" value={currency(preview.customerTotal)} />
-      <ProfitMetric label="Deposit" value={currency(preview.depositDue)} />
-      <ProfitMetric label="Balance" value={currency(preview.balanceDue)} />
-      <ProfitMetric label="Carrier pay" value={currency(preview.carrierPay)} internal />
-      <ProfitMetric
-        label="Est. gross profit"
-        value={currency(preview.grossMargin)}
-        emphasis
-        positive={preview.grossMargin >= 0}
-      />
-      <ProfitMetric
-        label="Est. margin"
-        value={preview.marginPercentage == null ? "—" : `${preview.marginPercentage.toFixed(1)}%`}
-        emphasis
-        positive={preview.marginPercentage == null || preview.marginPercentage >= 0}
-      />
+    <div className="space-y-4">
+      {missingCarrierPay ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          Carrier pay is blank or zero, so profit and margin are estimates only. Enter carrier pay in section 2 for accurate margin.
+        </div>
+      ) : null}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ProfitMetric label="Customer total" value={currency(preview.customerTotal)} />
+        <ProfitMetric label="Deposit" value={currency(preview.depositDue)} />
+        <ProfitMetric label="Balance" value={currency(preview.balanceDue)} />
+        <ProfitMetric label="Carrier pay" value={currency(preview.carrierPay)} internal />
+        <ProfitMetric
+          label="Gross profit"
+          value={currency(preview.grossMargin)}
+          emphasis
+          positive={preview.grossMargin >= 0}
+        />
+        <ProfitMetric
+          label="Margin %"
+          value={preview.marginPercentage == null ? "—" : `${preview.marginPercentage.toFixed(1)}%`}
+          emphasis
+          positive={preview.marginPercentage == null || preview.marginPercentage >= 0}
+        />
+      </div>
     </div>
   );
 }

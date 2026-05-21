@@ -3,9 +3,9 @@ import { GHL_IMPORT_ACCOUNTS } from "@/lib/ghl-accounts";
 import {
   allMappingFieldMeta,
   directionLabel,
-  requiredLabel,
   type MappingFieldMeta,
 } from "@/lib/ghl-field-mapping-meta";
+import { resolveMappingDisplayStatus, effectiveKnownFieldId, effectiveKnownFallback } from "@/lib/ghl-mapping-display";
 import { GhlFieldIndicatorBadges } from "@/components/ghl-mapping/ghl-field-indicator-badges";
 
 type MappingRow = {
@@ -63,7 +63,9 @@ export function GhlMappingSummaryTable({
           </thead>
           <tbody>
             {rows.map((row) => {
-              const mapped = Boolean(row.mapping?.ghlCustomFieldId);
+              const status = resolveMappingDisplayStatus(row.field, row.mapping, row.locationId);
+              const effectiveId = effectiveKnownFieldId(row.mapping, row.locationId, row.field.key);
+              const effectiveFallback = effectiveKnownFallback(row.mapping, row.locationId, row.field.key);
               return (
                 <tr key={`${row.locationId}-${row.field.key}`} className="border-t align-top">
                   <td className="p-3">
@@ -76,18 +78,21 @@ export function GhlMappingSummaryTable({
                     <GhlFieldIndicatorBadges indicators={row.field.indicators} className="mt-2" />
                   </td>
                   <td className="p-3 whitespace-nowrap">{directionLabel(row.field.direction)}</td>
-                  <td className="p-3">{row.mapping?.ghlCustomFieldName ?? (mapped ? "—" : "Unmapped")}</td>
-                  <td className="p-3 font-mono text-xs">{row.mapping?.ghlCustomFieldId ?? "—"}</td>
+                  <td className="p-3">{row.mapping?.ghlCustomFieldName ?? "—"}</td>
+                  <td className="p-3 font-mono text-xs">{effectiveId ?? effectiveFallback ?? "—"}</td>
                   <td className="p-3">
                     <span
                       className={
-                        mapped
+                        status.tone === "ok"
                           ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
-                          : "rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700"
+                          : status.tone === "critical"
+                            ? "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900"
+                            : "rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700"
                       }
                     >
-                      {mapped ? requiredLabel(row.field) : "Not mapped"}
+                      {status.label}
                     </span>
+                    {status.helpText ? <p className="mt-1 text-xs text-muted-foreground">{status.helpText}</p> : null}
                   </td>
                   <td className="p-3 text-xs text-muted-foreground">{row.field.notes ?? "—"}</td>
                 </tr>
