@@ -22,7 +22,8 @@ import { buildInitialPreview, type QuoteFeeRowData } from "@/lib/quote-form-prev
 import { resolveLiveQuoteUrl } from "@/lib/live-quote-url";
 import { markQuoteNotificationsRead } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
-import { defaultQuoteFees } from "@/lib/quote-fees";
+import { calculateFeeTotals, defaultQuoteFees } from "@/lib/quote-fees";
+import { formatRouteSummaryShort } from "@/lib/route-format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,16 +64,17 @@ export default async function EditQuotePage({
   });
 
   const vehicle = quote.vehicles[0];
-  const fees = ensureQuoteFees(quote.fees);
+  const fees = ensureQuoteFees(quote.fees, Number(quote.customerTotal));
   const latestGhlSync = quote.ghlSyncLogs[0];
   const syncFeedbackMessage = query.syncMessage ? decodeURIComponent(query.syncMessage) : null;
   const liveQuoteUrl = resolveLiveQuoteUrl(quote);
-  const routeSummary = formatRouteSummary(quote.pickupCity, quote.pickupState, quote.deliveryCity, quote.deliveryState);
+  const routeSummary = formatRouteSummaryShort(quote.pickupCity, quote.pickupState, quote.deliveryCity, quote.deliveryState);
   const vehicleSummary = formatVehicleSummary(vehicle);
   const isArchived = Boolean(quote.archivedAt);
 
   const initialPreview = buildInitialPreview({
     fees,
+    customerTotal: Number(quote.customerTotal),
     depositDue: Number(quote.depositDue),
     customerNotes: quote.customerNotes ?? "",
     internalNotes: quote.internalNotes ?? "",
@@ -190,6 +192,7 @@ export default async function EditQuotePage({
               quoteId={quote.id}
               quoteMode={quote.quoteMode}
               status={quote.status}
+              customerTotal={Number(quote.customerTotal)}
               depositDue={Number(quote.depositDue)}
               customerNotes={quote.customerNotes ?? ""}
               internalNotes={quote.internalNotes ?? ""}
@@ -298,7 +301,7 @@ export default async function EditQuotePage({
   );
 }
 
-function ensureQuoteFees(fees: QuoteFee[]): QuoteFeeRowData[] {
+function ensureQuoteFees(fees: QuoteFee[], customerTotal = 0): QuoteFeeRowData[] {
   const byType = new Map(fees.map((fee) => [fee.feeType, fee]));
   const defaults = defaultQuoteFees.filter((fee) => fee.feeType !== "CUSTOM").map((defaultFee) => {
     const existing = byType.get(defaultFee.feeType);
@@ -342,18 +345,19 @@ function ensureQuoteFees(fees: QuoteFee[]): QuoteFeeRowData[] {
           internalNote: "",
           sortOrder: fee.sortOrder,
         }));
-  return [...defaults, ...customFees].sort((a, b) => a.sortOrder - b.sortOrder);
-}
+  const merged = [...defaults, ...customFees].sort((a, b) => a.sortOrder - b.sortOrder);
+  const enabledCustomerTotal = calculateFeeTotals(merged).customerTotal;
 
-function formatRouteSummary(
-  pickupCity: string | null,
-  pickupState: string | null,
-  deliveryCity: string | null,
-  deliveryState: string | null,
-) {
-  const pickup = [pickupCity, pickupState].filter(Boolean).join(", ") || "Pickup TBD";
-  const delivery = [deliveryCity, deliveryState].filter(Boolean).join(", ") || "Delivery TBD";
-  return `${pickup} → ${delivery}`;
+  if (customerTotal > 0 && enabledCustomerTotal <= 0) {
+    const brokerFee = merged.find((fee) => fee.feeType === "BROKER_FEE" && !fee.isInternalOnly);
+    if (brokerFee) {
+      brokerFee.isEnabled = true;
+      brokerFee.amount = customerTotal;
+      brokerFee.showOnPdf = true;
+    }
+  }
+
+  return merged;
 }
 
 function formatVehicleSummary(

@@ -1,5 +1,7 @@
 import type { FeeType } from "@prisma/client";
 import { calculateFeeTotals } from "@/lib/quote-fees";
+import { feeAddsToCustomerTotal, feeShowsOnCustomerQuote } from "@/lib/customer-quote-fees";
+import { formatRouteSummaryShort } from "@/lib/route-format";
 
 export type QuoteFeeRowData = {
   id?: string;
@@ -42,10 +44,12 @@ export function parseFeesFromFormData(formData: FormData): ParsedFormFee[] {
   });
 }
 
-export function formatRouteFromFormData(formData: FormData) {
-  const pickup = [formData.get("pickupCity"), formData.get("pickupState")].filter(Boolean).join(", ") || "Pickup TBD";
-  const delivery = [formData.get("deliveryCity"), formData.get("deliveryState")].filter(Boolean).join(", ") || "Delivery TBD";
-  return `${pickup} → ${delivery}`;
+export function parseCustomerQuoteTotal(formData: FormData, calculatedTotal: number) {
+  const raw = formData.get("customerQuoteTotal");
+  if (raw == null || raw === "") return calculatedTotal;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return calculatedTotal;
+  return parsed;
 }
 
 export type QuoteFormPreview = {
@@ -55,16 +59,70 @@ export type QuoteFormPreview = {
   carrierPay: number;
   grossMargin: number;
   marginPercentage: number | null;
-  customerLineItems: Array<{ rowId: string; label: string; amount: number }>;
+  calculatedCustomerTotal: number;
+  customerLineItems: Array<{ rowId: string; label: string; amount: number; addsToTotal: boolean }>;
   internalLineItems: Array<{ rowId: string; label: string; amount: number }>;
   customerNotes: string;
   internalNotes: string;
   routeSummary: string;
 };
 
+function buildPreviewCore(input: {
+  fees: ParsedFormFee[] | QuoteFeeRowData[];
+  depositDue: number;
+  customerQuoteTotal?: number | null;
+  customerNotes: string;
+  internalNotes: string;
+  routeSummary: string;
+}): QuoteFormPreview {
+  const feeInputs = input.fees.map((fee) => ({
+    feeType: fee.feeType as FeeType,
+    amount: fee.amount,
+    isEnabled: fee.isEnabled,
+    isInternalOnly: fee.isInternalOnly,
+    showOnPdf: fee.showOnPdf,
+    label: fee.label,
+    rowId: "rowId" in fee ? fee.rowId : getFeeRowId(fee),
+  }));
+
+  const totals = calculateFeeTotals(feeInputs);
+  const customerTotal =
+    input.customerQuoteTotal != null && input.customerQuoteTotal >= 0
+      ? input.customerQuoteTotal
+      : totals.customerTotal;
+  const depositDue = input.depositDue;
+  const balanceDue = Math.max(0, customerTotal - depositDue);
+  const grossMargin = customerTotal - totals.carrierPay;
+  const marginPercentage = customerTotal > 0 ? (grossMargin / customerTotal) * 100 : null;
+
+  return {
+    customerTotal,
+    calculatedCustomerTotal: totals.customerTotal,
+    depositDue,
+    balanceDue,
+    carrierPay: totals.carrierPay,
+    grossMargin,
+    marginPercentage,
+    customerLineItems: feeInputs
+      .filter((fee) => feeShowsOnCustomerQuote(fee))
+      .map((fee) => ({
+        rowId: fee.rowId,
+        label: fee.label,
+        amount: fee.amount,
+        addsToTotal: feeAddsToCustomerTotal(fee),
+      })),
+    internalLineItems: feeInputs
+      .filter((fee) => fee.isEnabled && fee.isInternalOnly)
+      .map((fee) => ({ rowId: fee.rowId, label: fee.label, amount: fee.amount })),
+    customerNotes: input.customerNotes,
+    internalNotes: input.internalNotes,
+    routeSummary: input.routeSummary,
+  };
+}
+
 export function buildPreviewFromFormData(formData: FormData): QuoteFormPreview {
   const fees = parseFeesFromFormData(formData);
-  const totals = calculateFeeTotals(
+  const calculated = calculateFeeTotals(
     fees.map((fee) => ({
       feeType: fee.feeType as FeeType,
       amount: fee.amount,
@@ -72,23 +130,22 @@ export function buildPreviewFromFormData(formData: FormData): QuoteFormPreview {
       isInternalOnly: fee.isInternalOnly,
     })),
   );
+  const customerQuoteTotal = parseCustomerQuoteTotal(formData, calculated.customerTotal);
   const depositDue = Number(formData.get("depositDue") ?? 0);
-  const balanceDue = Math.max(0, totals.customerTotal - depositDue);
 
-  return {
-    ...totals,
+  return buildPreviewCore({
+    fees,
     depositDue,
-    balanceDue,
-    customerLineItems: fees
-      .filter((fee) => fee.isEnabled && !fee.isInternalOnly)
-      .map((fee) => ({ rowId: fee.rowId, label: fee.label, amount: fee.amount })),
-    internalLineItems: fees
-      .filter((fee) => fee.isEnabled && fee.isInternalOnly)
-      .map((fee) => ({ rowId: fee.rowId, label: fee.label, amount: fee.amount })),
+    customerQuoteTotal,
     customerNotes: String(formData.get("customerNotes") ?? ""),
     internalNotes: String(formData.get("internalNotes") ?? ""),
-    routeSummary: formatRouteFromFormData(formData),
-  };
+    routeSummary: formatRouteSummaryShort(
+      String(formData.get("pickupCity") ?? ""),
+      String(formData.get("pickupState") ?? ""),
+      String(formData.get("deliveryCity") ?? ""),
+      String(formData.get("deliveryState") ?? ""),
+    ),
+  });
 }
 
 export function buildPreviewFromFormElement(form: HTMLFormElement): QuoteFormPreview {
@@ -97,12 +154,13 @@ export function buildPreviewFromFormElement(form: HTMLFormElement): QuoteFormPre
 
 export function buildInitialPreview(input: {
   fees: QuoteFeeRowData[];
+  customerTotal: number;
   depositDue: number;
   customerNotes: string;
   internalNotes: string;
   routeSummary: string;
 }): QuoteFormPreview {
-  const totals = calculateFeeTotals(
+  const calculated = calculateFeeTotals(
     input.fees.map((fee) => ({
       feeType: fee.feeType as FeeType,
       amount: fee.amount,
@@ -110,19 +168,15 @@ export function buildInitialPreview(input: {
       isInternalOnly: fee.isInternalOnly,
     })),
   );
-  const balanceDue = Math.max(0, totals.customerTotal - input.depositDue);
-  return {
-    ...totals,
+  const customerQuoteTotal =
+    calculated.customerTotal > 0 ? calculated.customerTotal : Math.max(0, input.customerTotal);
+
+  return buildPreviewCore({
+    fees: input.fees,
     depositDue: input.depositDue,
-    balanceDue,
-    customerLineItems: input.fees
-      .filter((fee) => fee.isEnabled && !fee.isInternalOnly)
-      .map((fee) => ({ rowId: getFeeRowId(fee), label: fee.label, amount: fee.amount })),
-    internalLineItems: input.fees
-      .filter((fee) => fee.isEnabled && fee.isInternalOnly)
-      .map((fee) => ({ rowId: getFeeRowId(fee), label: fee.label, amount: fee.amount })),
+    customerQuoteTotal,
     customerNotes: input.customerNotes,
     internalNotes: input.internalNotes,
     routeSummary: input.routeSummary,
-  };
+  });
 }

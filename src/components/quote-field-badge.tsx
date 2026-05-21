@@ -4,6 +4,9 @@ const variants = {
   "customer-visible": "border-sky-200 bg-sky-50 text-sky-800",
   "carrier-facing": "border-indigo-200 bg-indigo-50 text-indigo-900",
   "internal-only": "border-amber-200 bg-amber-50 text-amber-900",
+  "adds-to-total": "border-emerald-200 bg-emerald-50 text-emerald-900",
+  "hidden-from-customer": "border-slate-200 bg-slate-50 text-slate-700",
+  "informational-only": "border-cyan-200 bg-cyan-50 text-cyan-900",
   "synced-from-ghl": "border-violet-200 bg-violet-50 text-violet-800",
   "synced-to-ghl": "border-emerald-200 bg-emerald-50 text-emerald-800",
   "optional-pdf": "border-slate-200 bg-slate-50 text-slate-700",
@@ -12,8 +15,11 @@ const variants = {
 
 const labels: Record<keyof typeof variants, string> = {
   "customer-visible": "Customer-facing",
-  "carrier-facing": "Carrier-facing",
-  "internal-only": "Internal profit view",
+  "carrier-facing": "Carrier / driver offer",
+  "internal-only": "Internal only",
+  "adds-to-total": "Adds to customer total",
+  "hidden-from-customer": "Hidden from customer",
+  "informational-only": "Does not affect total",
   "synced-from-ghl": "Synced from GHL",
   "synced-to-ghl": "Synced to GHL",
   "optional-pdf": "Optional PDF",

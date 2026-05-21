@@ -112,11 +112,12 @@ export async function updateQuoteAction(formData: FormData) {
     const depositDue = parseMoney(formData.get("depositDue"));
     const feeRows = parseFeeRows(formData);
     const totals = calculateFeeTotals(feeRows);
-    const customerTotal = parseMoney(String(totals.customerTotal));
+    const parsedCustomerTotal = parseMoney(formData.get("customerQuoteTotal"));
+    const customerTotal = parsedCustomerTotal ?? totals.customerTotal;
     const carrierPay = parseMoney(String(totals.carrierPay));
-    const grossMargin = parseMoney(String(totals.grossMargin));
+    const grossMargin = parseMoney(String(customerTotal - carrierPay));
     const marginPercentage =
-      totals.marginPercentage == null || !Number.isFinite(totals.marginPercentage) ? null : totals.marginPercentage;
+      customerTotal > 0 ? ((customerTotal - carrierPay) / customerTotal) * 100 : null;
 
     await prisma.$transaction([
       prisma.quoteFee.deleteMany({ where: { quoteId } }),

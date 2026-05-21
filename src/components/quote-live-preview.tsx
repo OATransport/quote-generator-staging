@@ -36,23 +36,26 @@ export function QuoteLivePreview({
             <CardTitle className="text-base">Customer-facing quote</CardTitle>
             <QuoteFieldBadge variant="customer-visible" />
           </div>
-          <CardDescription>Live preview — updates as you edit pricing below.</CardDescription>
+          <CardDescription>Live preview — matches what the customer sees on the public quote page.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <SummaryRow label="Customer" value={customerName} />
           <SummaryRow label="Route" value={preview.routeSummary} />
           <SummaryRow label="Vehicle" value={vehicleSummary} />
           <div className="grid grid-cols-3 gap-3 border-t pt-3">
-            <SummaryMetric label="Customer total" value={currency(preview.customerTotal)} />
+            <SummaryMetric label="Quote total" value={currency(preview.customerTotal)} emphasis />
             <SummaryMetric label="Deposit due" value={currency(preview.depositDue)} />
             <SummaryMetric label="Balance due" value={currency(preview.balanceDue)} />
           </div>
           {preview.customerLineItems.length > 0 ? (
             <div className="space-y-1 border-t pt-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Line items</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Customer line items</p>
               {preview.customerLineItems.map((fee) => (
                 <div key={fee.rowId} className="flex justify-between gap-2">
-                  <span>{fee.label}</span>
+                  <span>
+                    {fee.label}
+                    {!fee.addsToTotal ? <span className="ml-1 text-xs text-muted-foreground">(informational)</span> : null}
+                  </span>
                   <span className="font-medium">{currency(fee.amount)}</span>
                 </div>
               ))}
@@ -80,21 +83,10 @@ export function QuoteLivePreview({
             <CardTitle className="text-base">Internal profit preview</CardTitle>
             <QuoteFieldBadge variant="internal-only" />
           </div>
-          <CardDescription>Carrier pay and margin — never shown on public customer quote pages.</CardDescription>
+          <CardDescription>Carrier offer and margin — never shown on public customer quote pages.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <SummaryMetric label="Carrier pay" value={currency(preview.carrierPay)} />
-            <SummaryMetric
-              label="Est. gross profit"
-              value={currency(preview.grossMargin)}
-              highlight={preview.grossMargin >= 0 ? "positive" : "negative"}
-            />
-          </div>
-          <SummaryRow
-            label="Margin"
-            value={preview.marginPercentage == null ? "—" : `${preview.marginPercentage.toFixed(1)}%`}
-          />
+          <QuoteProfitSummary preview={preview} compact />
           {preview.internalLineItems.length > 0 ? (
             <div className="space-y-1 border-t border-amber-200/60 pt-3">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Internal line items</p>
@@ -128,32 +120,49 @@ export function QuoteLivePreview({
   );
 }
 
-export function QuoteProfitSummary({ preview }: { preview: QuoteFormPreview }) {
+export function QuoteProfitSummary({ preview, compact }: { preview: QuoteFormPreview; compact?: boolean }) {
+  const missingCustomerTotal = preview.customerTotal <= 0;
   const missingCarrierPay = preview.carrierPay <= 0;
+
   return (
     <div className="space-y-4">
-      {missingCarrierPay ? (
+      {missingCustomerTotal ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          Carrier pay is blank or zero, so profit and margin are estimates only. Enter carrier pay in section 2 for accurate margin.
+          Enter customer quote total to calculate margin.
         </div>
       ) : null}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <ProfitMetric label="Customer total" value={currency(preview.customerTotal)} />
-        <ProfitMetric label="Deposit" value={currency(preview.depositDue)} />
-        <ProfitMetric label="Balance" value={currency(preview.balanceDue)} />
-        <ProfitMetric label="Carrier pay" value={currency(preview.carrierPay)} internal />
+      {!missingCustomerTotal && missingCarrierPay ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          Enter carrier pay to calculate accurate profit.
+        </div>
+      ) : null}
+      <div className={cn("grid gap-4", compact ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3")}>
+        <ProfitMetric label="Customer quote total" value={currency(preview.customerTotal)} />
+        <ProfitMetric label="Carrier / driver offer" value={currency(preview.carrierPay)} internal />
         <ProfitMetric
           label="Gross profit"
-          value={currency(preview.grossMargin)}
+          value={missingCustomerTotal ? "Enter customer quote total" : currency(preview.grossMargin)}
           emphasis
-          positive={preview.grossMargin >= 0}
+          positive={!missingCustomerTotal && preview.grossMargin >= 0}
         />
         <ProfitMetric
           label="Margin %"
-          value={preview.marginPercentage == null ? "—" : `${preview.marginPercentage.toFixed(1)}%`}
+          value={
+            missingCustomerTotal
+              ? "Enter customer quote total to calculate margin."
+              : preview.marginPercentage == null
+                ? "Enter customer quote total to calculate margin."
+                : `${preview.marginPercentage.toFixed(1)}%`
+          }
           emphasis
           positive={preview.marginPercentage == null || preview.marginPercentage >= 0}
         />
+        {!compact ? (
+          <>
+            <ProfitMetric label="Deposit due" value={currency(preview.depositDue)} />
+            <ProfitMetric label="Balance due" value={currency(preview.balanceDue)} />
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -168,27 +177,11 @@ function SummaryRow({ label, value, mono }: { label: string; value: string; mono
   );
 }
 
-function SummaryMetric({
-  label,
-  value,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  highlight?: "positive" | "negative";
-}) {
+function SummaryMetric({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
   return (
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p
-        className={cn(
-          "text-base font-semibold",
-          highlight === "positive" && "text-emerald-700",
-          highlight === "negative" && "text-destructive",
-        )}
-      >
-        {value}
-      </p>
+      <p className={cn("font-semibold", emphasis ? "text-lg text-primary" : "text-base")}>{value}</p>
     </div>
   );
 }
@@ -207,14 +200,15 @@ function ProfitMetric({
   internal?: boolean;
 }) {
   return (
-    <div className={cn("rounded-lg border bg-background p-4", internal && "border-amber-200/60")}>
+    <div className={cn("rounded-lg border bg-background p-4", internal && "border-indigo-200/60")}>
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       <p
         className={cn(
           "mt-1 font-semibold",
-          emphasis ? "text-2xl" : "text-lg",
+          emphasis ? "text-xl" : "text-lg",
           positive === false && "text-destructive",
           positive === true && emphasis && "text-emerald-700",
+          typeof value === "string" && value.includes("Enter") && "text-sm font-normal text-muted-foreground",
         )}
       >
         {value}

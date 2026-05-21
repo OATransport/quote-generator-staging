@@ -5,6 +5,7 @@ import { Save } from "lucide-react";
 import { updateQuoteAction } from "@/app/actions";
 import { CollapsibleSection } from "@/components/collapsible-section";
 import {
+  QuoteFeeCarrierSection,
   QuoteFeeCustomerSection,
   QuoteFeeEditorProvider,
   QuoteFeeInternalSection,
@@ -77,6 +78,7 @@ type QuoteEditFormProps = {
   quoteId: string;
   quoteMode: string;
   status: string;
+  customerTotal: number;
   depositDue: number;
   customerNotes: string;
   internalNotes: string;
@@ -96,6 +98,7 @@ export function QuoteEditForm({
   quoteId,
   quoteMode,
   status,
+  customerTotal,
   depositDue,
   customerNotes,
   internalNotes,
@@ -112,20 +115,29 @@ export function QuoteEditForm({
 }: QuoteEditFormProps) {
   const { preview, setPreview } = usePreviewContext();
   const formRef = useRef<HTMLFormElement>(null);
+  const totalInputRef = useRef<HTMLInputElement>(null);
+  const manualTotalRef = useRef(false);
   const [isDirty, setIsDirty] = useState(false);
 
   const refreshPreview = useCallback(() => {
     const form = formRef.current;
     if (!form) return;
-    setPreview(buildPreviewFromFormElement(form));
+    const nextPreview = buildPreviewFromFormElement(form);
+    if (!manualTotalRef.current && totalInputRef.current) {
+      totalInputRef.current.value = String(nextPreview.calculatedCustomerTotal);
+    }
+    setPreview(nextPreview);
   }, [setPreview]);
 
   useEffect(() => {
     const form = formRef.current;
     if (!form) return;
 
-    const handleChange = () => {
+    const handleChange = (event: Event) => {
       setIsDirty(true);
+      if (event.target instanceof HTMLInputElement && event.target.id === "customerQuoteTotal") {
+        manualTotalRef.current = true;
+      }
       refreshPreview();
     };
 
@@ -136,6 +148,10 @@ export function QuoteEditForm({
       form.removeEventListener("change", handleChange);
     };
   }, [refreshPreview]);
+
+  const totalsMismatch =
+    preview.calculatedCustomerTotal > 0 &&
+    Math.abs(preview.customerTotal - preview.calculatedCustomerTotal) > 0.009;
 
   return (
     <QuoteFeeEditorProvider initialFees={fees} onSectionsChange={refreshPreview}>
@@ -242,16 +258,33 @@ export function QuoteEditForm({
               <QuoteFieldBadge variant="customer-visible" />
             </div>
             <CardDescription>
-              What the customer sees and pays on the live quote link — total, deposit, balance, and customer-visible line items.
+              What the customer sees on the live quote link — quote total, deposit, balance, and customer-visible line items.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-lg border bg-muted/40 p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Customer total</p>
-                <p className="mt-1 text-xl font-bold">{currency(preview.customerTotal)}</p>
+          <CardContent className="space-y-5">
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="space-y-2 rounded-lg border bg-background p-4 shadow-sm">
+                <Label htmlFor="customerQuoteTotal">Customer quote total</Label>
+                <Input
+                  ref={totalInputRef}
+                  id="customerQuoteTotal"
+                  name="customerQuoteTotal"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  defaultValue={customerTotal.toString()}
+                  className="text-lg font-semibold"
+                />
+                <p className="text-xs text-muted-foreground">
+                  From enabled line items: {currency(preview.calculatedCustomerTotal)}
+                </p>
+                {totalsMismatch ? (
+                  <p className="text-xs text-amber-800">
+                    Manual total differs from enabled line items. The saved quote total will use the amount above.
+                  </p>
+                ) : null}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 rounded-lg border bg-background p-4 shadow-sm">
                 <Label htmlFor="depositDue">Deposit due</Label>
                 <Input
                   id="depositDue"
@@ -260,14 +293,18 @@ export function QuoteEditForm({
                   min="0"
                   step="0.01"
                   defaultValue={depositDue.toString()}
+                  className="text-lg font-semibold"
                 />
               </div>
-              <div className="rounded-lg border bg-muted/40 p-3">
+              <div className="rounded-lg border bg-muted/40 p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Balance due</p>
-                <p className="mt-1 text-xl font-bold">{currency(preview.balanceDue)}</p>
+                <p className="mt-2 text-2xl font-bold">{currency(preview.balanceDue)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Customer quote total minus deposit due</p>
               </div>
             </div>
+
             <QuoteFeeCustomerSection />
+
             <div className="space-y-2 border-t pt-4">
               <Label htmlFor="customerNotes">Customer notes</Label>
               <p className="text-xs text-muted-foreground">Visible on the live quote page.</p>
@@ -279,15 +316,15 @@ export function QuoteEditForm({
         <Card className="border-indigo-200/60 bg-indigo-50/10">
           <CardHeader>
             <div className="flex flex-wrap items-center gap-2">
-              <CardTitle>2. Carrier / driver pay</CardTitle>
+              <CardTitle>2. Carrier / driver offer</CardTitle>
               <QuoteFieldBadge variant="carrier-facing" />
             </div>
             <CardDescription>
-              What you may offer or pay the carrier. Not shown on the public customer quote page today. A separate carrier-facing view may come later.
+              Used for dispatch and carrier negotiation. Not shown on the public customer quote page.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <QuoteFeeInternalSection section="carrier" />
+            <QuoteFeeCarrierSection />
           </CardContent>
         </Card>
 
@@ -298,28 +335,17 @@ export function QuoteEditForm({
               <QuoteFieldBadge variant="internal-only" />
             </div>
             <CardDescription>
-              Broker margin, internal-only costs, and dispatch notes. Never exposed on public customer quote pages.
+              Internal business math and dispatch-only costs. Never exposed on public customer quote pages.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <QuoteFeeInternalSection section="internal" />
+          <CardContent className="space-y-5">
+            <QuoteProfitSummary preview={preview} />
+            <QuoteFeeInternalSection />
             <div className="space-y-2 border-t border-amber-200/60 pt-4">
               <Label htmlFor="internalNotes">Internal notes</Label>
               <p className="text-xs text-muted-foreground">Dispatch-only — never shown to customers.</p>
               <Textarea id="internalNotes" name="internalNotes" defaultValue={internalNotes} />
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader>
-            <CardTitle>Profit calculator</CardTitle>
-            <CardDescription>
-              Gross profit = customer total − carrier pay. Margin % = gross profit ÷ customer total.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <QuoteProfitSummary preview={preview} />
           </CardContent>
         </Card>
 
@@ -360,7 +386,7 @@ export function QuoteSidebarTotals({ preview }: { preview: QuoteFormPreview }) {
       </div>
       <div className="border-t pt-3 text-sm">
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Carrier pay</span>
+          <span className="text-muted-foreground">Carrier offer</span>
           <span className="font-medium">{currency(preview.carrierPay)}</span>
         </div>
         <div className="mt-1 flex justify-between">
