@@ -18,11 +18,11 @@ import {
 } from "@/components/quote-edit-form";
 import { QuoteFieldBadge } from "@/components/quote-field-badge";
 import { companyCompactLogoUrl } from "@/lib/company-branding";
-import { buildInitialPreview, type QuoteFeeRowData } from "@/lib/quote-form-preview";
+import { buildInitialPreview, breakdownFeesFromQuoteFees } from "@/lib/quote-form-preview";
 import { resolveLiveQuoteUrl } from "@/lib/live-quote-url";
 import { markQuoteNotificationsRead } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
-import { calculateFeeTotals, defaultQuoteFees } from "@/lib/quote-fees";
+import { isBreakdownMetaFee, readShowItemizedBreakdown } from "@/lib/quote-pricing";
 import { formatRouteSummaryShort } from "@/lib/route-format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export default async function EditQuotePage({
   });
 
   const vehicle = quote.vehicles[0];
-  const fees = ensureQuoteFees(quote.fees, Number(quote.customerTotal));
+  const pricingData = extractQuotePricingData(quote.fees, quote);
   const latestGhlSync = quote.ghlSyncLogs[0];
   const syncFeedbackMessage = query.syncMessage ? decodeURIComponent(query.syncMessage) : null;
   const liveQuoteUrl = resolveLiveQuoteUrl(quote);
@@ -73,11 +73,14 @@ export default async function EditQuotePage({
   const isArchived = Boolean(quote.archivedAt);
 
   const initialPreview = buildInitialPreview({
-    fees,
+    fees: pricingData.breakdownFees,
     customerTotal: Number(quote.customerTotal),
     depositDue: Number(quote.depositDue),
+    carrierPay: pricingData.carrierPay,
+    showItemizedBreakdown: pricingData.showItemizedBreakdown,
     customerNotes: quote.customerNotes ?? "",
     internalNotes: quote.internalNotes ?? "",
+    carrierNotes: pricingData.carrierNotes,
     routeSummary,
   });
 
@@ -194,8 +197,11 @@ export default async function EditQuotePage({
               status={quote.status}
               customerTotal={Number(quote.customerTotal)}
               depositDue={Number(quote.depositDue)}
+              carrierPay={pricingData.carrierPay}
+              showItemizedBreakdown={pricingData.showItemizedBreakdown}
               customerNotes={quote.customerNotes ?? ""}
               internalNotes={quote.internalNotes ?? ""}
+              carrierNotes={pricingData.carrierNotes}
               pickupAddress={quote.pickupAddress ?? ""}
               pickupCity={quote.pickupCity ?? ""}
               pickupState={quote.pickupState ?? ""}
@@ -204,8 +210,9 @@ export default async function EditQuotePage({
               deliveryCity={quote.deliveryCity ?? ""}
               deliveryState={quote.deliveryState ?? ""}
               deliveryZip={quote.deliveryZip ?? ""}
-              trailerType={quote.trailerType ?? ""}
-              fees={fees}
+              transportType={quote.trailerType ?? ""}
+              pickupDate={quote.pickupDate ? quote.pickupDate.toISOString().slice(0, 10) : quote.deliveryWindow ?? ""}
+              breakdownFees={pricingData.breakdownFees}
             />
           </div>
 
@@ -301,63 +308,34 @@ export default async function EditQuotePage({
   );
 }
 
-function ensureQuoteFees(fees: QuoteFee[], customerTotal = 0): QuoteFeeRowData[] {
-  const byType = new Map(fees.map((fee) => [fee.feeType, fee]));
-  const defaults = defaultQuoteFees.filter((fee) => fee.feeType !== "CUSTOM").map((defaultFee) => {
-    const existing = byType.get(defaultFee.feeType);
-    return {
-      id: existing?.id,
-      feeType: defaultFee.feeType,
-      label: existing?.label ?? defaultFee.label,
-      amount: Number(existing?.amount ?? 0),
-      isEnabled: existing?.isEnabled ?? false,
-      showOnPdf: existing?.showOnPdf ?? defaultFee.showOnPdf,
-      isInternalOnly: existing?.isInternalOnly ?? defaultFee.isInternalOnly,
-      internalNote: existing?.internalNote ?? "",
-      sortOrder: existing?.sortOrder ?? defaultFee.sortOrder,
-    };
-  });
-  const existingCustomFees = fees
-    .filter((fee) => fee.feeType === "CUSTOM")
-    .map((fee) => ({
-      id: fee.id,
-      feeType: fee.feeType,
-      label: fee.label,
-      amount: Number(fee.amount),
-      isEnabled: fee.isEnabled,
-      showOnPdf: fee.showOnPdf,
-      isInternalOnly: fee.isInternalOnly,
-      internalNote: fee.internalNote,
-      sortOrder: fee.sortOrder,
-    }));
-  const customFees = existingCustomFees.length
-    ? existingCustomFees
-    : defaultQuoteFees
-        .filter((fee) => fee.feeType === "CUSTOM")
-        .map((fee) => ({
-          id: undefined,
-          feeType: fee.feeType,
-          label: fee.label,
-          amount: 0,
-          isEnabled: false,
-          showOnPdf: fee.showOnPdf,
-          isInternalOnly: fee.isInternalOnly,
-          internalNote: "",
-          sortOrder: fee.sortOrder,
-        }));
-  const merged = [...defaults, ...customFees].sort((a, b) => a.sortOrder - b.sortOrder);
-  const enabledCustomerTotal = calculateFeeTotals(merged).customerTotal;
+function extractQuotePricingData(
+  fees: QuoteFee[],
+  quote: { customerTotal: { toString(): string }; internalEstimatedCarrierPay: { toString(): string } | null },
+) {
+  const mapped = fees.map((fee) => ({
+    id: fee.id,
+    feeType: fee.feeType,
+    label: fee.label,
+    amount: Number(fee.amount),
+    isEnabled: fee.isEnabled,
+    showOnPdf: fee.showOnPdf,
+    isInternalOnly: fee.isInternalOnly,
+    internalNote: fee.internalNote,
+    sortOrder: fee.sortOrder,
+  }));
 
-  if (customerTotal > 0 && enabledCustomerTotal <= 0) {
-    const brokerFee = merged.find((fee) => fee.feeType === "BROKER_FEE" && !fee.isInternalOnly);
-    if (brokerFee) {
-      brokerFee.isEnabled = true;
-      brokerFee.amount = customerTotal;
-      brokerFee.showOnPdf = true;
-    }
-  }
+  const carrierFee = mapped.find((fee) => fee.feeType === "CARRIER_PAY");
+  const carrierPay =
+    Number(quote.internalEstimatedCarrierPay ?? 0) > 0
+      ? Number(quote.internalEstimatedCarrierPay)
+      : Number(carrierFee?.amount ?? 0);
 
-  return merged;
+  return {
+    carrierPay,
+    carrierNotes: carrierFee?.internalNote ?? "",
+    showItemizedBreakdown: readShowItemizedBreakdown(mapped),
+    breakdownFees: breakdownFeesFromQuoteFees(mapped.filter((fee) => !isBreakdownMetaFee(fee))),
+  };
 }
 
 function formatVehicleSummary(

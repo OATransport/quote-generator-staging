@@ -2,10 +2,11 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  AlertTriangle,
   CheckCircle,
+  ChevronDown,
   HelpCircle,
   Mail,
-  MapPin,
   Phone,
   ShieldCheck,
   Truck,
@@ -13,11 +14,13 @@ import {
 } from "lucide-react";
 import { acceptQuoteAction, askQuoteQuestionAction, declineQuoteAction } from "@/app/actions";
 import { CompanyLogo } from "@/components/company-logo";
+import { PublicQuoteRouteVisual } from "@/components/public-quote-route-visual";
 import { companyHeaderLogoUrl } from "@/lib/company-branding";
 import { isKeenerCompany, resolveCompanyContact } from "@/lib/company-contact";
-import { feeShowsOnCustomerQuote } from "@/lib/customer-quote-fees";
+import { isQuotePubliclyActive } from "@/lib/quote-active";
+import { isBreakdownMetaFee, readShowItemizedBreakdown } from "@/lib/quote-pricing";
 import { prisma } from "@/lib/prisma";
-import { formatRouteLocation } from "@/lib/route-format";
+import { formatRouteLocation, formatRouteSummaryShort } from "@/lib/route-format";
 import { currency, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +38,7 @@ const errorMessages: Record<string, string> = {
   "missing-question": "Please enter your question.",
   "already-accepted": "This quote has already been accepted.",
   "already-declined": "This quote has already been declined.",
+  "quote-inactive": "This quote is no longer active.",
 };
 
 export default async function AcceptQuotePage({
@@ -53,194 +57,202 @@ export default async function AcceptQuotePage({
   if (!quote) notFound();
 
   const vehicle = quote.vehicles[0];
+  const isActive = isQuotePubliclyActive(quote);
   const isAccepted = quote.status === "ACCEPTED" || query.accepted === "1";
   const isDeclined = quote.status === "DECLINED" || query.declined === "1";
   const questionSubmitted = query.question === "1";
   const errorMessage = query.error ? errorMessages[query.error] ?? "Something went wrong. Please try again." : undefined;
   const pickup = formatRouteLocation(quote.pickupAddress, quote.pickupCity, quote.pickupState, quote.pickupZip);
   const delivery = formatRouteLocation(quote.deliveryAddress, quote.deliveryCity, quote.deliveryState, quote.deliveryZip);
-  const vehicleInfo = [vehicle?.year, vehicle?.make, vehicle?.model, vehicle?.type].filter(Boolean).join(" ") || "Not specified";
-  const customerLineItems = quote.fees.filter((fee) => feeShowsOnCustomerQuote(fee));
+  const routeSummary = formatRouteSummaryShort(quote.pickupCity, quote.pickupState, quote.deliveryCity, quote.deliveryState);
+  const vehicleInfo = [vehicle?.year, vehicle?.make, vehicle?.model].filter(Boolean).join(" ") || null;
   const isKeener = isKeenerCompany(quote.company.name);
   const contact = resolveCompanyContact(quote.company.name);
-  const brandHeader = isKeener ? "bg-slate-950" : "bg-sky-900";
+  const showItemizedBreakdown = readShowItemizedBreakdown(quote.fees);
+  const breakdownItems = quote.fees.filter(
+    (fee) =>
+      fee.feeType === "CUSTOM" &&
+      !isBreakdownMetaFee(fee) &&
+      !fee.isInternalOnly &&
+      fee.showOnPdf &&
+      showItemizedBreakdown,
+  );
+  const brandGradient = isKeener ? "from-slate-950 via-slate-900 to-slate-800" : "from-sky-950 via-sky-900 to-sky-800";
   const brandAccent = isKeener ? "text-slate-900" : "text-sky-900";
+  const pickupDateLabel = quote.pickupDate
+    ? quote.pickupDate.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
+    : quote.deliveryWindow || null;
+
+  if (!isActive) {
+    return (
+      <InactiveQuotePage quote={quote} contact={contact} brandGradient={brandGradient} />
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)]">
-      <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:py-12">
-        <div className="overflow-hidden rounded-2xl border bg-white shadow-xl">
-          <div className={cn("px-6 py-8 text-white sm:px-8", brandHeader)}>
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-4">
-                <div className="rounded-xl bg-white/95 p-4 shadow-sm">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc_0%,_#e2e8f0_100%)]">
+      <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:py-12">
+        <div className="overflow-hidden rounded-[28px] border border-white/60 bg-white shadow-2xl shadow-slate-300/30">
+          <div className={cn("relative px-6 py-10 text-white sm:px-10", `bg-gradient-to-br ${brandGradient}`)}>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_40%)]" />
+            <div className="relative grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
+              <div className="space-y-6">
+                <div className="rounded-2xl bg-white px-6 py-5 shadow-lg">
                   <CompanyLogo
                     name={quote.company.name}
                     legalName={quote.company.legalName}
                     logoUrl={companyHeaderLogoUrl(quote.company)}
-                    variant="header"
+                    variant="public"
                   />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-white/80">Your transportation quote</p>
-                  <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">{quote.quoteNumber}</h1>
-                  <p className="mt-2 text-lg text-white/90">{quote.customerSnapshot.name}</p>
+                  <p className="text-sm font-medium uppercase tracking-[0.18em] text-white/70">Vehicle transportation quote</p>
+                  <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">{quote.quoteNumber}</h1>
+                  <p className="mt-3 text-xl text-white/90">Prepared for {quote.customerSnapshot.name}</p>
                 </div>
-              </div>
-              <div className="space-y-3 lg:text-right">
                 <StatusPill status={quote.status} accepted={isAccepted} declined={isDeclined} />
-                {contact ? (
-                  <div className="rounded-xl border border-white/15 bg-white/10 p-4 text-sm backdrop-blur">
-                    <p className="font-medium text-white">Questions? Contact us</p>
-                    <div className="mt-3 space-y-2 text-white/90">
-                      <ContactRow icon={Phone} href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`} label={contact.phone} />
-                      <ContactRow icon={Mail} href={`mailto:${contact.email}`} label={contact.email} />
-                      <ContactRow icon={ShieldCheck} href={contact.website} label={contact.websiteLabel} external />
-                    </div>
-                  </div>
-                ) : null}
               </div>
+
+              {contact ? (
+                <div className="rounded-2xl border border-white/15 bg-white/10 p-5 backdrop-blur-sm">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-white/70">Contact {quote.company.name}</p>
+                  <div className="mt-4 space-y-3 text-sm">
+                    <ContactRow icon={Phone} href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`} label={contact.phone} />
+                    <ContactRow icon={Mail} href={`mailto:${contact.email}`} label={contact.email} />
+                    <ContactRow icon={ShieldCheck} href={contact.website} label={contact.websiteLabel} external />
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
-          <div className="space-y-8 px-6 py-8 sm:px-8">
+          <div className="space-y-8 px-6 py-8 sm:px-10 sm:py-10">
             {errorMessage ? (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-                {errorMessage}
-              </div>
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{errorMessage}</div>
             ) : null}
 
             {isAccepted ? (
               <AlertBanner tone="success" icon={CheckCircle} title="Quote accepted">
-                Thank you{quote.customerSignature ? `, ${quote.customerSignature}` : ""}. {quote.company.name} has been notified and will follow up on next steps.
+                Thank you{quote.customerSignature ? `, ${quote.customerSignature}` : ""}. {quote.company.name} will follow up on next steps.
               </AlertBanner>
             ) : null}
-
             {isDeclined ? (
               <AlertBanner tone="danger" icon={XCircle} title="Quote declined">
                 Your response has been recorded. {quote.company.name} has been notified.
               </AlertBanner>
             ) : null}
-
             {questionSubmitted ? (
               <AlertBanner tone="info" icon={HelpCircle} title="Question submitted">
                 {quote.company.name} will follow up with you soon.
               </AlertBanner>
             ) : null}
 
-            <section className="grid gap-4 md:grid-cols-2">
-              <RouteCard title="Pickup" icon={MapPin} lines={pickup.lines} isKeener={isKeener} />
-              <RouteCard title="Delivery" icon={MapPin} lines={delivery.lines} isKeener={isKeener} />
-            </section>
+            <PublicQuoteRouteVisual pickup={pickup} delivery={delivery} routeSummary={routeSummary} isKeener={isKeener} />
 
-            <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-              <Card className="border-0 shadow-sm ring-1 ring-black/5">
-                <CardHeader className="pb-3">
+            <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+              <Card className="border-0 shadow-md ring-1 ring-black/5">
+                <CardHeader>
                   <div className="flex items-center gap-2">
                     <Truck className="h-5 w-5 text-muted-foreground" />
-                    <CardTitle className="text-lg">Vehicle & shipment</CardTitle>
+                    <CardTitle className="text-xl">Vehicle & shipment details</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
-                  <Detail label="Vehicle" value={vehicleInfo} />
+                  {vehicleInfo ? <Detail label="Vehicle" value={vehicleInfo} /> : null}
                   <Detail label="Customer" value={quote.customerSnapshot.name} />
-                  {quote.trailerType ? <Detail label="Trailer type" value={quote.trailerType} /> : null}
-                  {vehicle?.condition ? <Detail label="Condition" value={vehicle.condition} /> : null}
+                  {quote.trailerType ? <Detail label="Transport type" value={quote.trailerType} /> : null}
+                  {vehicle?.condition ? <Detail label="Running status" value={vehicle.condition} /> : null}
+                  {pickupDateLabel ? <Detail label="Pickup date / window" value={pickupDateLabel} /> : null}
+                  {vehicle?.type ? <Detail label="Vehicle type" value={vehicle.type} /> : null}
                 </CardContent>
               </Card>
 
-              <Card className={cn("border-0 shadow-md ring-1 ring-black/5", isKeener ? "bg-slate-50" : "bg-sky-50")}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Your quote</CardTitle>
-                  <CardDescription>Review your total, deposit, and balance due.</CardDescription>
+              <Card className={cn("border-0 shadow-lg ring-2", isKeener ? "bg-slate-50 ring-slate-200" : "bg-sky-50 ring-sky-200")}>
+                <CardHeader>
+                  <CardTitle className="text-xl">Your transportation quote</CardTitle>
+                  <CardDescription>Review your service price, deposit, and remaining balance.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quote total</p>
-                    <p className={cn("mt-1 text-4xl font-bold tracking-tight", brandAccent)}>
-                      {currency(quote.customerTotal.toString())}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <PriceTile label="Deposit due" value={currency(quote.depositDue.toString())} />
-                    <PriceTile label="Balance due" value={currency(quote.balanceDue.toString())} />
-                  </div>
-                  {customerLineItems.length > 0 ? (
-                    <div className="space-y-2 border-t pt-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Included items</p>
-                      {customerLineItems.map((fee) => (
-                        <div key={fee.id} className="flex justify-between gap-3 text-sm">
-                          <span>{fee.label}</span>
-                          <span className="font-medium">{currency(fee.amount.toString())}</span>
-                        </div>
-                      ))}
+                <CardContent className="space-y-5">
+                  <PricingRow
+                    label="Transportation Service Price"
+                    value={currency(quote.customerTotal.toString())}
+                    emphasis
+                    accent={brandAccent}
+                  />
+                  <PricingRow label="Deposit Due Today" value={currency(quote.depositDue.toString())} />
+                  <PricingRow label="Remaining Carrier Balance" value={currency(quote.balanceDue.toString())} />
+
+                  {breakdownItems.length > 0 ? (
+                    <details className="rounded-xl border bg-white/80 p-4">
+                      <summary className="cursor-pointer text-sm font-semibold">View itemized breakdown</summary>
+                      <div className="mt-3 space-y-2">
+                        {breakdownItems.map((fee) => (
+                          <div key={fee.id} className="flex justify-between gap-3 text-sm">
+                            <span>{fee.label}</span>
+                            <span className="font-medium">{currency(fee.amount.toString())}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ) : (
+                    <div className="rounded-xl border border-dashed bg-white/70 px-4 py-3 text-sm text-muted-foreground">
+                      Vehicle Transportation Service — one clear quoted price for your shipment.
                     </div>
-                  ) : null}
+                  )}
                 </CardContent>
               </Card>
-            </section>
+            </div>
 
             {quote.customerNotes ? (
-              <div className="rounded-xl border bg-muted/30 p-5 text-sm">
+              <div className="rounded-2xl border bg-muted/20 p-5">
                 <p className="font-semibold">Notes from {quote.company.name}</p>
-                <p className="mt-2 whitespace-pre-wrap text-muted-foreground">{quote.customerNotes}</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{quote.customerNotes}</p>
               </div>
             ) : null}
 
-            <section className="rounded-xl border bg-muted/20 p-5">
-              <p className="text-sm font-semibold">What happens next</p>
+            <section className="rounded-2xl border bg-slate-50 p-6">
+              <p className="font-semibold">What happens next</p>
               <ol className="mt-4 space-y-3 text-sm text-muted-foreground">
-                <li className="flex gap-3">
-                  <StepNumber>1</StepNumber>
-                  <span>Review your route, vehicle details, and pricing above.</span>
-                </li>
-                <li className="flex gap-3">
-                  <StepNumber>2</StepNumber>
-                  <span>Accept the quote when you are ready to move forward.</span>
-                </li>
-                <li className="flex gap-3">
-                  <StepNumber>3</StepNumber>
-                  <span>{quote.company.name} confirms dispatch details and next steps with you.</span>
-                </li>
+                <li>1. Review your route, vehicle details, and transportation service price.</li>
+                <li>2. Accept the quote when you are ready to move forward.</li>
+                <li>3. {quote.company.name} confirms dispatch details and next steps with you.</li>
               </ol>
-              <div className="mt-5 space-y-2 text-xs leading-5 text-muted-foreground">
-                <p>No PDF is required to approve this quote.</p>
-                <p>Quote details can be confirmed by phone or email if you prefer.</p>
-                <p>
-                  Final dispatch depends on carrier availability, route conditions, vehicle condition, and the details you provide.
-                </p>
-              </div>
+              <p className="mt-4 text-xs leading-6 text-muted-foreground">
+                No PDF is required. Quote details can be confirmed by phone or email. Final dispatch depends on carrier availability, route conditions, vehicle condition, and customer-provided details.
+              </p>
             </section>
 
             {!isAccepted && !isDeclined ? (
-              <Card className="border-0 shadow-lg ring-2 ring-primary/20">
+              <Card className="border-0 bg-slate-950 text-white shadow-xl">
                 <CardHeader>
-                  <CardTitle className="text-xl">Accept this quote</CardTitle>
-                  <CardDescription>Type your name and agree to the terms to approve this transportation quote.</CardDescription>
+                  <CardTitle className="text-2xl text-white">Accept this quote</CardTitle>
+                  <CardDescription className="text-slate-300">
+                    Secure your transportation service by approving this quote today.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <form action={acceptQuoteAction} className="space-y-4">
                     <input type="hidden" name="token" value={routeParams.token} />
                     <div className="space-y-2">
-                      <Label htmlFor="customerSignature">Your full name (signature)</Label>
+                      <Label htmlFor="customerSignature" className="text-slate-200">Your full name (signature)</Label>
                       <Input
                         id="customerSignature"
                         name="customerSignature"
                         defaultValue={quote.customerSnapshot.name}
-                        placeholder="Type your full name"
+                        className="border-slate-700 bg-slate-900 text-white"
                         required
                       />
                     </div>
                     {quote.company.defaultTerms ? (
-                      <div className="rounded-lg border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
+                      <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4 text-sm leading-6 text-slate-300">
                         {quote.company.defaultTerms}
                       </div>
                     ) : null}
-                    <label className="flex items-start gap-3 text-sm">
+                    <label className="flex items-start gap-3 text-sm text-slate-200">
                       <input type="checkbox" name="agreeTerms" className="mt-1 h-4 w-4" required />
                       <span>I agree to the quote terms and authorize {quote.company.name} to proceed based on this quote.</span>
                     </label>
-                    <Button type="submit" className="h-12 w-full text-base font-semibold">
+                    <Button type="submit" className="h-12 w-full bg-white text-base font-semibold text-slate-950 hover:bg-slate-100">
                       Accept quote
                     </Button>
                   </form>
@@ -248,34 +260,20 @@ export default async function AcceptQuotePage({
               </Card>
             ) : null}
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              {!isAccepted && !isDeclined ? (
-                <Card className="border shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base">Decline quote</CardTitle>
-                    <CardDescription>Optional — tell us why this quote does not work for you.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <form action={declineQuoteAction} className="space-y-4">
-                      <input type="hidden" name="token" value={routeParams.token} />
-                      <div className="space-y-2">
-                        <Label htmlFor="declineReason">Reason for declining</Label>
-                        <Textarea id="declineReason" name="declineReason" placeholder="Tell us why you are declining this quote" required />
-                      </div>
-                      <Button type="submit" variant="outline" className="w-full">
-                        Decline quote
-                      </Button>
-                    </form>
-                  </CardContent>
-                </Card>
-              ) : null}
+            {!isAccepted && !isDeclined ? (
+              <div className="grid gap-4 lg:grid-cols-2">
+                <SecondaryAccordion title="Decline quote" description="Optional — tell us why this quote does not work for you.">
+                  <form action={declineQuoteAction} className="space-y-4">
+                    <input type="hidden" name="token" value={routeParams.token} />
+                    <div className="space-y-2">
+                      <Label htmlFor="declineReason">Reason for declining</Label>
+                      <Textarea id="declineReason" name="declineReason" required />
+                    </div>
+                    <Button type="submit" variant="outline" className="w-full">Decline quote</Button>
+                  </form>
+                </SecondaryAccordion>
 
-              <Card className="border shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">Ask a question</CardTitle>
-                  <CardDescription>Send a message to {quote.company.name} about this quote.</CardDescription>
-                </CardHeader>
-                <CardContent>
+                <SecondaryAccordion title="Ask a question" description={`Send a message to ${quote.company.name}.`}>
                   <form action={askQuoteQuestionAction} className="space-y-4">
                     <input type="hidden" name="token" value={routeParams.token} />
                     <div className="space-y-2">
@@ -284,22 +282,18 @@ export default async function AcceptQuotePage({
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="message">Your question</Label>
-                      <Textarea id="message" name="message" placeholder="What would you like to know?" required />
+                      <Textarea id="message" name="message" required />
                     </div>
-                    <Button type="submit" variant="secondary" className="w-full">
-                      Ask a question
-                    </Button>
+                    <Button type="submit" variant="secondary" className="w-full">Ask a question</Button>
                   </form>
-                </CardContent>
-              </Card>
-            </div>
+                </SecondaryAccordion>
+              </div>
+            ) : null}
 
             {quote.quotePdfUrl ? (
               <div className="text-center">
                 <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-                  <Link href={quote.quotePdfUrl} target="_blank" rel="noopener noreferrer">
-                    Download optional PDF copy
-                  </Link>
+                  <Link href={quote.quotePdfUrl} target="_blank" rel="noopener noreferrer">Download optional PDF copy</Link>
                 </Button>
               </div>
             ) : null}
@@ -322,6 +316,75 @@ export default async function AcceptQuotePage({
   );
 }
 
+function InactiveQuotePage({
+  quote,
+  contact,
+  brandGradient,
+}: {
+  quote: {
+    quoteNumber: string;
+    company: { name: string; legalName: string | null; logoUrl?: string | null; iconUrl?: string | null };
+    customerSnapshot: { name: string };
+  };
+  contact: ReturnType<typeof resolveCompanyContact>;
+  brandGradient: string;
+}) {
+  return (
+    <div className="min-h-screen bg-muted/30 px-4 py-16">
+      <div className="mx-auto max-w-2xl rounded-3xl border bg-white p-8 shadow-xl">
+        <div className={cn("rounded-2xl px-6 py-8 text-white", `bg-gradient-to-br ${brandGradient}`)}>
+          <CompanyLogo
+            name={quote.company.name}
+            legalName={quote.company.legalName}
+            logoUrl={companyHeaderLogoUrl(quote.company)}
+            variant="public"
+          />
+          <h1 className="mt-6 text-3xl font-bold">{quote.quoteNumber}</h1>
+        </div>
+        <div className="mt-8 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-semibold">This quote is no longer active.</p>
+            <p className="mt-2 text-sm leading-6">
+              This link is no longer available for acceptance. Please contact {quote.company.name} if you need an updated quote.
+            </p>
+          </div>
+        </div>
+        {contact ? (
+          <div className="mt-6 text-sm text-muted-foreground">
+            <p>{contact.phone}</p>
+            <p>{contact.email}</p>
+            <Link href={contact.website} className="underline underline-offset-2">{contact.websiteLabel}</Link>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function SecondaryAccordion({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="group rounded-2xl border bg-white shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+        <div>
+          <p className="font-medium">{title}</p>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+        <ChevronDown className="h-5 w-5 text-muted-foreground transition group-open:rotate-180" />
+      </summary>
+      <div className="border-t px-5 py-4">{children}</div>
+    </details>
+  );
+}
+
 function ContactRow({
   icon: Icon,
   href,
@@ -334,72 +397,37 @@ function ContactRow({
   external?: boolean;
 }) {
   return (
-    <Link
-      href={href}
-      target={external ? "_blank" : undefined}
-      rel={external ? "noopener noreferrer" : undefined}
-      className="flex items-center gap-2 transition hover:text-white"
-    >
+    <Link href={href} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined} className="flex items-center gap-2 hover:text-white">
       <Icon className="h-4 w-4 shrink-0" />
       <span>{label}</span>
     </Link>
   );
 }
 
-function RouteCard({
-  title,
-  icon: Icon,
-  lines,
-  isKeener,
-}: {
-  title: string;
-  icon: typeof MapPin;
-  lines: string[];
-  isKeener: boolean;
-}) {
-  return (
-    <div className="rounded-xl border bg-white p-5 shadow-sm">
-      <div className="flex items-start gap-3">
-        <div className={cn("rounded-lg p-2 text-white", isKeener ? "bg-slate-800" : "bg-sky-700")}>
-          <Icon className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
-          <div className="mt-2 space-y-1">
-            {lines.map((line) => (
-              <p key={line} className="text-sm font-medium leading-6 text-foreground">
-                {line}
-              </p>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StepNumber({ children }: { children: ReactNode }) {
-  return (
-    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-      {children}
-    </span>
-  );
-}
-
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="font-medium">{value}</p>
+    <div className="rounded-xl border bg-muted/10 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-2 font-medium">{value}</p>
     </div>
   );
 }
 
-function PriceTile({ label, value }: { label: string; value: string }) {
+function PricingRow({
+  label,
+  value,
+  emphasis,
+  accent,
+}: {
+  label: string;
+  value: string;
+  emphasis?: boolean;
+  accent?: string;
+}) {
   return (
-    <div className="rounded-lg border bg-white/80 p-3">
+    <div className="rounded-xl border bg-white/80 px-4 py-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-bold">{value}</p>
+      <p className={cn("mt-2 font-bold", emphasis ? cn("text-3xl tracking-tight", accent) : "text-2xl")}>{value}</p>
     </div>
   );
 }

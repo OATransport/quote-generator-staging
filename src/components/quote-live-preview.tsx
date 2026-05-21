@@ -33,47 +33,38 @@ export function QuoteLivePreview({
       <Card className="border-sky-200/80 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-base">Customer-facing quote</CardTitle>
+            <CardTitle className="text-base">Customer quote preview</CardTitle>
             <QuoteFieldBadge variant="customer-visible" />
           </div>
-          <CardDescription>Live preview — matches what the customer sees on the public quote page.</CardDescription>
+          <CardDescription>What the customer sees on the public live quote page.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <SummaryRow label="Customer" value={customerName} />
           <SummaryRow label="Route" value={preview.routeSummary} />
           <SummaryRow label="Vehicle" value={vehicleSummary} />
-          <div className="grid grid-cols-3 gap-3 border-t pt-3">
-            <SummaryMetric label="Quote total" value={currency(preview.customerTotal)} emphasis />
-            <SummaryMetric label="Deposit due" value={currency(preview.depositDue)} />
-            <SummaryMetric label="Balance due" value={currency(preview.balanceDue)} />
+          <div className="space-y-2 border-t pt-3">
+            <SummaryMetric label="Transportation Service Price" value={currency(preview.customerTotal)} emphasis />
+            <div className="grid grid-cols-2 gap-3">
+              <SummaryMetric label="Deposit Due Today" value={currency(preview.depositDue)} />
+              <SummaryMetric label="Remaining Carrier Balance" value={currency(preview.balanceDue)} />
+            </div>
           </div>
-          {preview.customerLineItems.length > 0 ? (
+          {preview.showItemizedBreakdown && preview.breakdownLineItems.some((item) => item.isCustomerVisible) ? (
             <div className="space-y-1 border-t pt-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Customer line items</p>
-              {preview.customerLineItems.map((fee) => (
-                <div key={fee.rowId} className="flex justify-between gap-2">
-                  <span>
-                    {fee.label}
-                    {!fee.addsToTotal ? <span className="ml-1 text-xs text-muted-foreground">(informational)</span> : null}
-                  </span>
-                  <span className="font-medium">{currency(fee.amount)}</span>
-                </div>
-              ))}
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Itemized breakdown</p>
+              {preview.breakdownLineItems
+                .filter((item) => item.isCustomerVisible)
+                .map((item) => (
+                  <div key={item.rowId} className="flex justify-between gap-2">
+                    <span>{item.label}</span>
+                    <span className="font-medium">{currency(item.amount)}</span>
+                  </div>
+                ))}
             </div>
           ) : null}
           <div className="border-t pt-3">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Live quote link</p>
-              <QuoteFieldBadge variant="live-link-primary" />
-            </div>
-            <LiveQuoteLinkField url={liveQuoteUrl} label="" helperText="" inputId="liveQuoteLinkPreview" />
+            <LiveQuoteLinkField url={liveQuoteUrl} label="Live quote link" helperText="" inputId="liveQuoteLinkPreview" />
           </div>
-          {preview.customerNotes ? (
-            <div className="rounded-md bg-muted/60 p-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Customer notes</p>
-              <p className="mt-1 whitespace-pre-wrap">{preview.customerNotes}</p>
-            </div>
-          ) : null}
         </CardContent>
       </Card>
 
@@ -83,27 +74,17 @@ export function QuoteLivePreview({
             <CardTitle className="text-base">Internal profit preview</CardTitle>
             <QuoteFieldBadge variant="internal-only" />
           </div>
-          <CardDescription>Carrier offer and margin — never shown on public customer quote pages.</CardDescription>
+          <CardDescription>Carrier pay and broker margin — never shown publicly.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <QuoteProfitSummary preview={preview} compact />
-          {preview.internalLineItems.length > 0 ? (
-            <div className="space-y-1 border-t border-amber-200/60 pt-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Internal line items</p>
-              {preview.internalLineItems.map((fee) => (
-                <div key={fee.rowId} className="flex justify-between gap-2">
-                  <span>{fee.label}</span>
-                  <span className="font-medium">{currency(fee.amount)}</span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-          {preview.internalNotes ? (
-            <div className="rounded-md border border-amber-200/60 bg-background/80 p-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-amber-900">Internal notes</p>
-              <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{preview.internalNotes}</p>
-            </div>
-          ) : null}
+          <div className="grid grid-cols-2 gap-3">
+            <SummaryMetric label="Carrier pay" value={currency(preview.carrierPay)} />
+            <SummaryMetric label="Broker fee" value={currency(preview.grossMargin)} emphasis />
+          </div>
+          <SummaryRow
+            label="Margin %"
+            value={preview.marginPercentage == null ? "Enter customer price" : `${preview.marginPercentage.toFixed(1)}%`}
+          />
           <div className="space-y-1 border-t border-amber-200/60 pt-3">
             <SummaryRow label="GHL opportunity" value={ghlOpportunityId ?? "—"} mono />
             <SummaryRow label="Quote mode" value={quoteModeLabel(quoteMode)} />
@@ -116,54 +97,6 @@ export function QuoteLivePreview({
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-export function QuoteProfitSummary({ preview, compact }: { preview: QuoteFormPreview; compact?: boolean }) {
-  const missingCustomerTotal = preview.customerTotal <= 0;
-  const missingCarrierPay = preview.carrierPay <= 0;
-
-  return (
-    <div className="space-y-4">
-      {missingCustomerTotal ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          Enter customer quote total to calculate margin.
-        </div>
-      ) : null}
-      {!missingCustomerTotal && missingCarrierPay ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          Enter carrier pay to calculate accurate profit.
-        </div>
-      ) : null}
-      <div className={cn("grid gap-4", compact ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3")}>
-        <ProfitMetric label="Customer quote total" value={currency(preview.customerTotal)} />
-        <ProfitMetric label="Carrier / driver offer" value={currency(preview.carrierPay)} internal />
-        <ProfitMetric
-          label="Gross profit"
-          value={missingCustomerTotal ? "Enter customer quote total" : currency(preview.grossMargin)}
-          emphasis
-          positive={!missingCustomerTotal && preview.grossMargin >= 0}
-        />
-        <ProfitMetric
-          label="Margin %"
-          value={
-            missingCustomerTotal
-              ? "Enter customer quote total to calculate margin."
-              : preview.marginPercentage == null
-                ? "Enter customer quote total to calculate margin."
-                : `${preview.marginPercentage.toFixed(1)}%`
-          }
-          emphasis
-          positive={preview.marginPercentage == null || preview.marginPercentage >= 0}
-        />
-        {!compact ? (
-          <>
-            <ProfitMetric label="Deposit due" value={currency(preview.depositDue)} />
-            <ProfitMetric label="Balance due" value={currency(preview.balanceDue)} />
-          </>
-        ) : null}
-      </div>
     </div>
   );
 }
@@ -182,37 +115,6 @@ function SummaryMetric({ label, value, emphasis }: { label: string; value: strin
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className={cn("font-semibold", emphasis ? "text-lg text-primary" : "text-base")}>{value}</p>
-    </div>
-  );
-}
-
-function ProfitMetric({
-  label,
-  value,
-  emphasis,
-  positive,
-  internal,
-}: {
-  label: string;
-  value: string;
-  emphasis?: boolean;
-  positive?: boolean;
-  internal?: boolean;
-}) {
-  return (
-    <div className={cn("rounded-lg border bg-background p-4", internal && "border-indigo-200/60")}>
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p
-        className={cn(
-          "mt-1 font-semibold",
-          emphasis ? "text-xl" : "text-lg",
-          positive === false && "text-destructive",
-          positive === true && emphasis && "text-emerald-700",
-          typeof value === "string" && value.includes("Enter") && "text-sm font-normal text-muted-foreground",
-        )}
-      >
-        {value}
-      </p>
     </div>
   );
 }

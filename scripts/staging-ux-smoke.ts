@@ -340,9 +340,9 @@ async function main() {
     const liveLink = await readStagingLiveLink(page);
     const checks = {
       header: /Copy live quote link/i.test(html),
-      customerSummary: /Customer-facing quote/i.test(html),
-      internalSummary: /Internal dispatch view/i.test(html),
-      profitSummary: /Profit summary|C\. Profit summary/i.test(html),
+      customerSummary: /Customer quote preview|Customer-facing quote/i.test(html),
+      internalSummary: /Internal profit preview|Internal profit view/i.test(html),
+      profitSummary: /Broker fee|Internal profit preview|Margin %|Profit summary/i.test(html),
       badges: /Customer-visible|Internal only/i.test(html),
       stickySave: /Save quote/i.test(html) && /Unsaved changes|Does not update GHL/i.test(html),
       collapsible: /Quote settings|Pickup location|Delivery location/i.test(html),
@@ -373,7 +373,13 @@ async function main() {
     await deposit.scrollIntoViewIfNeeded();
     await deposit.fill(String(testDeposit));
     await page.waitForTimeout(500);
-    const previewTotal = await page.locator("text=Customer total").first().isVisible().catch(() => false);
+    const previewTotal = await page
+      .locator("text=Transportation Service Price")
+      .or(page.locator("text=Customer quote total"))
+      .or(page.locator("text=Customer total"))
+      .first()
+      .isVisible()
+      .catch(() => false);
     await page.getByRole("button", { name: /Save quote/i }).click();
     await page.waitForTimeout(3000);
     await page.goto(`${STAGING}/quotes/${sample.id}/edit`, { waitUntil: "networkidle" });
@@ -395,7 +401,7 @@ async function main() {
       status: acceptRes.status,
       hidesCarrierPay: !/carrier pay/i.test(acceptHtml),
       hidesInternalNotes: !/internal notes/i.test(acceptHtml),
-      hasQuoteTotal: /Quote total/i.test(acceptHtml),
+      hasQuoteTotal: /Transportation Service Price|Quote total/i.test(acceptHtml),
     };
     report.publicAccept = publicAccept;
     if (!publicAccept.hidesCarrierPay) fail("Public accept exposes carrier pay");

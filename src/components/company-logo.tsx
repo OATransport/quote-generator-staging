@@ -5,7 +5,7 @@ type CompanyLogoProps = {
   name: string;
   legalName?: string | null;
   logoUrl?: string | null;
-  variant?: "header" | "compact";
+  variant?: "header" | "compact" | "public";
   absoluteUrls?: boolean;
   className?: string;
 };
@@ -42,8 +42,11 @@ export function CompanyLogo({
         src={resolvedLogo}
         alt={displayName}
         className={cn(
-          "object-contain object-left",
-          variant === "header" ? "h-16 max-w-[260px]" : "h-8 max-w-[160px]",
+          "object-contain",
+          variant === "public"
+            ? "mx-auto h-24 w-auto max-w-[min(100%,320px)] object-center sm:h-28"
+            : "object-left",
+          variant === "header" ? "h-16 max-w-[260px]" : variant === "compact" ? "h-8 max-w-[160px]" : "",
         )}
       />
     </div>

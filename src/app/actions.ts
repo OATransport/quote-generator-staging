@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "crypto";
-import type { FeeType, QuoteMode, QuoteStatus } from "@prisma/client";
+import type { QuoteMode, QuoteStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { resolveGhlImportAccountKey } from "@/lib/ghl-accounts";
@@ -12,8 +12,10 @@ import {
 import { allMappingFields } from "@/lib/ghl-field-mapping-config";
 import { prisma } from "@/lib/prisma";
 import { generateQuotePdf } from "@/lib/pdf";
-import { calculateFeeTotals } from "@/lib/quote-fees";
 import { parseMoney, parseQuoteMode, parseQuoteStatus, toDecimal } from "@/lib/form-parsing";
+import { buildFeeRowsForSave, parseFeesFromFormData } from "@/lib/quote-form-preview";
+import { calculateQuotePricing } from "@/lib/quote-pricing";
+import { isQuotePubliclyActive } from "@/lib/quote-active";
 import { getRequestMeta } from "@/lib/request-meta";
 import { appUrl } from "@/lib/utils";
 import {
@@ -110,14 +112,20 @@ export async function updateQuoteAction(formData: FormData) {
     }
 
     const depositDue = parseMoney(formData.get("depositDue"));
-    const feeRows = parseFeeRows(formData);
-    const totals = calculateFeeTotals(feeRows);
-    const parsedCustomerTotal = parseMoney(formData.get("customerQuoteTotal"));
-    const customerTotal = parsedCustomerTotal ?? totals.customerTotal;
-    const carrierPay = parseMoney(String(totals.carrierPay));
-    const grossMargin = parseMoney(String(customerTotal - carrierPay));
-    const marginPercentage =
-      customerTotal > 0 ? ((customerTotal - carrierPay) / customerTotal) * 100 : null;
+    const customerTotal = parseMoney(formData.get("customerTransportationPrice")) ?? 0;
+    const carrierPay = parseMoney(formData.get("carrierPay")) ?? 0;
+    const breakdownFees = parseFeesFromFormData(formData);
+    const showItemizedBreakdown = formData.get("showItemizedBreakdown") === "on";
+    const pricing = calculateQuotePricing({ customerPrice: customerTotal, depositDue, carrierPay });
+    const feeRows = buildFeeRowsForSave({
+      breakdownFees,
+      showItemizedBreakdown,
+      carrierPay,
+      carrierNotes: String(formData.get("carrierNotes") ?? "") || null,
+    });
+    const pickupDateRaw = String(formData.get("pickupDate") ?? "").trim();
+    const parsedPickupDate = pickupDateRaw ? new Date(pickupDateRaw) : null;
+    const pickupDate = parsedPickupDate && !Number.isNaN(parsedPickupDate.getTime()) ? parsedPickupDate : null;
 
     await prisma.$transaction([
       prisma.quoteFee.deleteMany({ where: { quoteId } }),
@@ -135,12 +143,13 @@ export async function updateQuoteAction(formData: FormData) {
           deliveryState: String(formData.get("deliveryState") ?? "") || null,
           deliveryZip: String(formData.get("deliveryZip") ?? "") || null,
           trailerType: String(formData.get("trailerType") ?? "") || null,
-          customerTotal: toDecimal(customerTotal) ?? 0,
-          depositDue: toDecimal(depositDue) ?? 0,
-          balanceDue: toDecimal(Math.max(0, customerTotal - depositDue)) ?? 0,
+          pickupDate,
+          customerTotal: toDecimal(pricing.customerPrice) ?? 0,
+          depositDue: toDecimal(pricing.depositDue) ?? 0,
+          balanceDue: toDecimal(pricing.balanceDue) ?? 0,
           internalEstimatedCarrierPay: carrierPay > 0 ? toDecimal(carrierPay) : null,
-          internalGrossMargin: toDecimal(grossMargin),
-          internalMarginPercentage: toDecimal(marginPercentage),
+          internalGrossMargin: toDecimal(pricing.brokerFee),
+          internalMarginPercentage: toDecimal(pricing.marginPercent),
           customerNotes: String(formData.get("customerNotes") ?? "") || null,
           internalNotes: String(formData.get("internalNotes") ?? "") || null,
           fees: { create: feeRows },
@@ -176,30 +185,6 @@ export async function archiveQuoteAction(formData: FormData) {
   revalidatePath("/");
   revalidatePath(`/quotes/${quoteId}/edit`);
   redirect("/quotes");
-}
-
-function parseFeeRows(formData: FormData) {
-  const rowIds = formData.getAll("feeRowId").map(String);
-  const enabled = new Set(formData.getAll("feeEnabled").map(String));
-  const showOnPdf = new Set(formData.getAll("feeShowOnPdf").map(String));
-  const internalOnly = new Set(formData.getAll("feeInternalOnly").map(String));
-
-  return rowIds
-    .map((rowId) => {
-      const feeType = String(formData.get(`feeType_${rowId}`) ?? "CUSTOM") as FeeType;
-      const label = String(formData.get(`feeLabel_${rowId}`) ?? "").trim();
-      return {
-        feeType,
-        label: label || "Custom Fee",
-        amount: parseMoney(formData.get(`feeAmount_${rowId}`)),
-        isEnabled: enabled.has(rowId),
-        showOnPdf: showOnPdf.has(rowId),
-        isInternalOnly: internalOnly.has(rowId),
-        internalNote: String(formData.get(`feeInternalNote_${rowId}`) ?? "") || null,
-        sortOrder: Number(formData.get(`feeSortOrder_${rowId}`) ?? 0) || 0,
-      };
-    })
-    .filter((row) => row.label || row.amount !== 0);
 }
 
 export async function generatePdfAndSyncAction(formData: FormData) {
@@ -297,6 +282,10 @@ export async function acceptQuoteAction(formData: FormData) {
   const quote = await getQuoteByToken(token);
   if (!quote) redirect("/");
 
+  if (!isQuotePubliclyActive(quote)) {
+    redirect(`/accept/${token}?error=quote-inactive`);
+  }
+
   if (quote.status === "ACCEPTED") {
     redirect(`/accept/${token}?accepted=1`);
   }
@@ -355,6 +344,10 @@ export async function declineQuoteAction(formData: FormData) {
 
   const quote = await getQuoteByToken(token);
   if (!quote) redirect("/");
+
+  if (!isQuotePubliclyActive(quote)) {
+    redirect(`/accept/${token}?error=quote-inactive`);
+  }
 
   if (quote.status === "DECLINED") {
     redirect(`/accept/${token}?declined=1`);
