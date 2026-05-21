@@ -5,11 +5,15 @@ export const GHL_IMPORT_ACCOUNTS = [
     key: "oat",
     label: "Organized Auto Transport",
     ghlLocationId: OAT_GHL_LOCATION_ID,
+    pipelineName: "Organized Auto Transport Quote Request Pipeline",
+    stageName: "New Quote Request",
   },
   {
     key: "keener",
     label: "Keener Logistics",
     ghlLocationId: KEENER_GHL_LOCATION_ID,
+    pipelineName: "Quote Pipeline",
+    stageName: "New Quote",
   },
 ] as const;
 

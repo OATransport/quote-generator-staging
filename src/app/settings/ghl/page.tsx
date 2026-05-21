@@ -1,14 +1,32 @@
+import Link from "next/link";
 import { saveMappingAction } from "@/app/actions";
-import { getGhlFieldMappingsForActiveLocation } from "@/lib/ghl-field-mappings";
-import { prisma } from "@/lib/prisma";
+import { GhlAccountCards } from "@/components/ghl-mapping/ghl-account-cards";
+import { GhlFieldIndicatorBadges } from "@/components/ghl-mapping/ghl-field-indicator-badges";
+import {
+  GhlMappingPageIntro,
+  GhlMappingSafetyPanel,
+  GhlMappingSectionIntro,
+} from "@/components/ghl-mapping/ghl-mapping-guidance";
+import {
+  GhlMappingSummaryTable,
+  mappingsByLocationFromRecords,
+} from "@/components/ghl-mapping/ghl-mapping-summary-table";
+import { leadImportFieldMeta, quoteResultFieldMeta } from "@/lib/ghl-field-mapping-meta";
+import {
+  getActiveGhlLocationIdOrNull,
+  getGhlFieldMappingsForLocation,
+  KEENER_GHL_LOCATION_ID,
+  OAT_GHL_LOCATION_ID,
+} from "@/lib/ghl-field-mappings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isGhlAutoSyncBackEnabled, isGhlSyncBackEnabled } from "@/server/ghl";
 
 export const dynamic = "force-dynamic";
 
-const commonFields = [
+const legacyCommonFields = [
   "pickupAddress",
   "pickupCity",
   "pickupState",
@@ -28,22 +46,102 @@ const commonFields = [
   "depositDue",
   "balanceDue",
   "trailerType",
+  "quoteAcceptanceUrl",
+  "quotePdfUrl",
 ] as const;
 
 export default async function GhlSettingsPage() {
-  const mappings = await getGhlFieldMappingsForActiveLocation();
+  const activeLocationId = getActiveGhlLocationIdOrNull();
+  const [oatMappings, keenerMappings] = await Promise.all([
+    getGhlFieldMappingsForLocation(OAT_GHL_LOCATION_ID),
+    getGhlFieldMappingsForLocation(KEENER_GHL_LOCATION_ID),
+  ]);
+  const mappingsByLocation = mappingsByLocationFromRecords([...oatMappings, ...keenerMappings]);
 
   return (
     <div className="max-w-6xl space-y-6 p-6 lg:p-8">
-      <div>
-        <p className="text-sm font-medium text-muted-foreground">Map existing GHL fields</p>
-        <h2 className="text-3xl font-bold tracking-normal">GHL field mapping</h2>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <GhlMappingPageIntro />
+        <Button asChild variant="outline">
+          <Link href="/dashboard/settings/ghl-field-mapping">Open full mapping editor</Link>
+        </Button>
       </div>
+
+      <GhlMappingSafetyPanel
+        sync={{
+          syncBackEnabled: isGhlSyncBackEnabled(),
+          autoSyncBackEnabled: isGhlAutoSyncBackEnabled(),
+        }}
+      />
+
+      <div className="space-y-3">
+        <h3 className="text-lg font-semibold">GHL accounts</h3>
+        <GhlAccountCards activeLocationId={activeLocationId} />
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Add or update a mapping</CardTitle>
+          <CardTitle>Mapping reference</CardTitle>
           <CardDescription>
-            The importer checks the configured custom field ID/name first, then falls back to a JSON path on the GHL opportunity or contact.
+            Use the full mapping editor for dropdown-based updates. This page keeps a legacy add/update form and a
+            read-only overview for both accounts.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-8">
+          <section className="space-y-3">
+            <GhlMappingSectionIntro
+              title="Intake mappings"
+              direction="ghl-to-app"
+              helperText="These fields are read from GHL when importing or refreshing a quote."
+            />
+            <GhlMappingSummaryTable
+              title="Intake overview"
+              fields={leadImportFieldMeta}
+              mappingsByLocation={mappingsByLocation}
+            />
+          </section>
+
+          <section className="space-y-3">
+            <GhlMappingSectionIntro
+              title="Quote-result mappings"
+              direction="app-to-ghl"
+              helperText="These fields are written back to GHL only during manual sync while sync writes are enabled."
+            />
+            <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+              <p className="font-medium">Public Acceptance URL</p>
+              <GhlFieldIndicatorBadges
+                indicators={["critical", "live-link-primary", "written-to-ghl", "customer-facing"]}
+                className="mt-2"
+              />
+              <p className="mt-2 text-muted-foreground">
+                Primary customer link. Always prioritize this over PDF URLs when sending quotes.
+              </p>
+            </div>
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">Quote PDF URL</p>
+              <GhlFieldIndicatorBadges
+                indicators={["optional", "pdf-optional", "written-to-ghl"]}
+                className="mt-2"
+              />
+              <p className="mt-2 text-muted-foreground">
+                Optional supporting document. Missing PDF URLs are acceptable on staging and in normal workflows.
+              </p>
+            </div>
+            <GhlMappingSummaryTable
+              title="Quote-result overview"
+              fields={quoteResultFieldMeta}
+              mappingsByLocation={mappingsByLocation}
+            />
+          </section>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Legacy add or update mapping</CardTitle>
+          <CardDescription>
+            Updates the active environment location only. Prefer the full mapping editor unless you need a raw fallback
+            path or manual field key entry.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -52,7 +150,7 @@ export default async function GhlSettingsPage() {
               <Label htmlFor="appFieldKey">App field</Label>
               <Input id="appFieldKey" name="appFieldKey" list="app-fields" required />
               <datalist id="app-fields">
-                {commonFields.map((field) => (
+                {legacyCommonFields.map((field) => (
                   <option key={field} value={field} />
                 ))}
               </datalist>
@@ -66,7 +164,9 @@ export default async function GhlSettingsPage() {
               <Input id="ghlCustomFieldName" name="ghlCustomFieldName" />
             </div>
             <div className="flex items-end">
-              <Button type="submit" className="w-full">Save</Button>
+              <Button type="submit" className="w-full">
+                Save
+              </Button>
             </div>
             <div className="space-y-2 md:col-span-3">
               <Label htmlFor="fallbackPath">Fallback path</Label>
@@ -78,38 +178,6 @@ export default async function GhlSettingsPage() {
           </form>
         </CardContent>
       </Card>
-
-      <div className="overflow-hidden rounded-lg border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted text-left">
-            <tr>
-              <th className="p-3">App field</th>
-              <th className="p-3">Custom field ID</th>
-              <th className="p-3">Name/key</th>
-              <th className="p-3">Fallback</th>
-              <th className="p-3">Required</th>
-            </tr>
-          </thead>
-          <tbody>
-            {mappings.map((mapping) => (
-              <tr key={mapping.id} className="border-t">
-                <td className="p-3 font-medium">{mapping.appFieldKey}</td>
-                <td className="p-3">{mapping.ghlCustomFieldId ?? ""}</td>
-                <td className="p-3">{mapping.ghlCustomFieldName ?? ""}</td>
-                <td className="p-3">{mapping.fallbackPath ?? ""}</td>
-                <td className="p-3">{mapping.isRequired ? "Yes" : "No"}</td>
-              </tr>
-            ))}
-            {!mappings.length && (
-              <tr>
-                <td className="p-6 text-muted-foreground" colSpan={5}>
-                  No mappings yet. Run the seed script or add mappings above.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
