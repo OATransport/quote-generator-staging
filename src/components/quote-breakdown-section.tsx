@@ -9,7 +9,6 @@ import {
   BASE_TRANSPORT_LINE_LABEL,
   breakdownModeFromToggle,
   formatBreakdownMismatchMessage,
-  sumCustomerBreakdownFees,
 } from "@/lib/quote-breakdown";
 import { currency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -110,13 +109,7 @@ export function QuoteBreakdownSection({
   const initialMode = breakdownModeFromToggle(showItemizedBreakdown);
   const [mode, setMode] = useState<"simple" | "itemized">(initialMode);
 
-  const customerBreakdownTotal = sumCustomerBreakdownFees(
-    breakdownFees.map((fee) => ({
-      ...fee,
-      feeType: "CUSTOM",
-      showOnPdf: !fee.isInternalOnly,
-    })),
-  );
+  const customerBreakdownTotal = preview.breakdownTotal;
   const mismatchMessage =
     mode === "itemized" && customerBreakdownTotal > 0
       ? formatBreakdownMismatchMessage(preview.customerTotal, customerBreakdownTotal)
@@ -302,6 +295,7 @@ function BreakdownRow({
           min="0"
           defaultValue={fee.amount.toString()}
           className="text-right font-medium"
+          onInput={(event) => event.currentTarget.dispatchEvent(new Event("input", { bubbles: true }))}
         />
       </div>
       <div className="space-y-2">
