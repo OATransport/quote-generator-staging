@@ -80,17 +80,37 @@ Set `NEXT_PUBLIC_APP_URL` to `https://staging-app.shipwithoat.com` **before** th
 
 ### Deployment protection (required)
 
-Internal routes (`/`, `/quotes`, `/import`, `/dashboard/*`, `/settings/*`) have **no app-level authentication**. Staging **must** be restricted.
+Staging internal routes must not be public. Use **one or both**:
 
-**Recommended (Vercel Pro or higher):**
+#### A. App-level Basic Auth (Hobby plan workaround)
+
+When Vercel Deployment Protection is unavailable, enable middleware Basic Auth:
+
+```bash
+BASIC_AUTH_ENABLED=true
+BASIC_AUTH_USER=<choose username>
+BASIC_AUTH_PASSWORD=<choose strong password>
+```
+
+| Protected | Public (no auth) |
+|-----------|------------------|
+| `/`, `/quotes`, `/quotes/*` | `/accept/*` |
+| `/import` | `/branding/*` |
+| `/dashboard`, `/dashboard/*` | `/generated/*` |
+| `/settings`, `/settings/*` | `/_next/*`, `/favicon.ico` |
+| `/api/internal/*` | |
+
+- Local dev: `BASIC_AUTH_ENABLED=false` (default).
+- If enabled without user/password, internal routes return **401** (fail closed).
+- Credentials are server-only env vars — never `NEXT_PUBLIC_*`.
+- Verify: `npx tsx scripts/verify-basic-auth.ts`
+
+#### B. Vercel Deployment Protection (Pro+ optional extra layer)
 
 1. **Project → Settings → Deployment Protection**
-2. Enable **Vercel Authentication** (team members only) **or** **Password Protection** for Preview + Production
-3. Optionally enable **Trusted IPs** if your team uses a fixed VPN egress
+2. Enable **Vercel Authentication** or **Password Protection**
 
-**Minimum acceptable:** Password protection on all deployments until app-level auth exists.
-
-**Do not** expose staging on a public URL without protection.
+**Do not** share the staging internal URL without Basic Auth enabled.
 
 ---
 
@@ -143,6 +163,16 @@ GHL_AUTO_SYNC_BACK_ENABLED=false
 ```
 
 Use literal string `false` (not empty).
+
+### Required — private staging access (Hobby plan)
+
+```bash
+BASIC_AUTH_ENABLED=true
+BASIC_AUTH_USER=<choose username>
+BASIC_AUTH_PASSWORD=<choose strong password>
+```
+
+When `BASIC_AUTH_ENABLED=true`, internal routes require Basic Auth. Public `/accept/[token]` live quote links stay open for customers. Logo assets at `/branding/*` remain public.
 
 ### Optional — legacy single-account fallback
 
@@ -310,7 +340,8 @@ Import test opportunities via `/import` or `/dashboard/import-ghl` if not alread
 
 | # | Test | PASS / FAIL |
 |---|------|-------------|
-| 1 | Staging URL requires deployment protection (not publicly browsable) | |
+| 1 | Staging URL requires authentication for internal routes (`/` returns **401** without Basic Auth) | |
+| 1b | `/accept/{token}` loads **without** auth | |
 | 2 | Dashboard `/` loads | |
 | 3 | Import page `/import` loads | |
 | 4 | Account selector shows **Organized Auto Transport** and **Keener Logistics** | |

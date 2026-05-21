@@ -108,7 +108,24 @@ Open `http://localhost:3000`.
 
 **Full private staging package:** see **[STAGING-DEPLOY.md](./STAGING-DEPLOY.md)** (Vercel project setup, env vars, Neon steps, deploy procedure, PASS/FAIL smoke checklist, go/no-go).
 
-Use this checklist before deploying to a private staging environment. **Do not deploy to a public URL without network restriction** — internal routes have no app-level authentication yet.
+Use this checklist before deploying to a private staging environment. **Enable app-level Basic Auth on staging** (see below) so internal routes are not public.
+
+### App-level Basic Auth (Hobby plan staging workaround)
+
+When Vercel Deployment Protection is unavailable, enable middleware Basic Auth on staging:
+
+```bash
+BASIC_AUTH_ENABLED=true
+BASIC_AUTH_USER=<choose username>
+BASIC_AUTH_PASSWORD=<choose strong password>
+```
+
+- **Protected:** `/`, `/quotes`, `/import`, `/dashboard/*`, `/settings/*`, `/api/internal/*`
+- **Public:** `/accept/[token]`, `/branding/*`, `/generated/*`, Next static assets
+- **Local dev:** leave `BASIC_AUTH_ENABLED=false` (default) for normal development.
+- If `BASIC_AUTH_ENABLED=true` but user/password are missing, internal routes return **401** (fail closed).
+
+Verify locally: `npx tsx scripts/verify-basic-auth.ts` (with dev server running).
 
 ### Initial sync flags (required)
 
@@ -147,6 +164,11 @@ KEENER_GHL_DEFAULT_STAGE_ID=c53a4512-4f37-44e6-88f4-d0296cf115ca
 # Safety — keep false until manually approved
 GHL_SYNC_BACK_ENABLED=false
 GHL_AUTO_SYNC_BACK_ENABLED=false
+
+# Private staging access (Hobby plan — when Vercel Deployment Protection unavailable)
+BASIC_AUTH_ENABLED=true
+BASIC_AUTH_USER=
+BASIC_AUTH_PASSWORD=
 
 # Durable PDF storage on Vercel (from Blob store → Read-Write token)
 BLOB_READ_WRITE_TOKEN=
@@ -188,16 +210,13 @@ PDF generation is **not required** for staging, customer acceptance, or quote de
 - Open PDF / Blob URL
 - PDF branding verification
 
-### Network restriction (required until auth exists)
+### Network restriction (staging)
 
-Internal routes (`/`, `/quotes`, `/import`, `/dashboard/*`, `/settings/*`) are **not authenticated**. Only `/accept/[token]` is intended for customers.
+Internal routes require **Basic Auth** when `BASIC_AUTH_ENABLED=true`. Public customer quote links at `/accept/[token]` remain accessible without auth so customers can accept, decline, or ask questions.
 
-Until app-level auth is added, staging must be:
+On Vercel Hobby without Deployment Protection, set Basic Auth env vars on staging (see above). Optionally add Vercel Deployment Protection on Pro+ as an extra layer.
 
-- Behind VPN, IP allowlist, or reverse-proxy **basic auth**, or
-- On a non-public URL shared only with the team.
-
-Do not expose staging to the open internet.
+Do not expose staging internal pages without Basic Auth enabled.
 
 ### Local dev: avoid stale cache 500s
 
